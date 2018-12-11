@@ -43,8 +43,11 @@ class player : public scheduler_task
         bool run(void *p);
     private:
         SemaphoreHandle_t data_queue_filled_handle;         // didn't manage to implement this semaphore. TODO: verify if it's needed
+//        SemaphoreHandle_t volume_down_handle;
         QueueHandle_t data_queue_handle;
         unsigned char data[512];
+//        uint8_t volume;
+        bool interrupted;
 };
 
 class sineTest : public scheduler_task
@@ -53,6 +56,17 @@ class sineTest : public scheduler_task
         sineTest();
         bool init(void);
         bool run(void *p);
+};
+
+class buttons : public scheduler_task
+{
+    public :
+        buttons();
+        bool init(void);
+        bool run(void *p);
+    private:
+//        SemaphoreHandle_t volume_down_handle;
+//        uint8_t volume;
 };
 
 #endif /* MP3TASKS_HPP_ */

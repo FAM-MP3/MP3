@@ -154,7 +154,7 @@ int InitVS10xx(void) {
 //    WriteSci(SCI_CLOCKF,
 //             HZ_TO_SC_FREQ(12288000) | SC_MULT_53_35X | SC_ADD_53_10X);
     success |= WriteSci(SCI_AUDATA, 0xAC45);
-//    setVolume(70,70);
+//    setVolume(20,20);
     WriteSci(SCI_VOL, 0x0000); // max
 
     return success;

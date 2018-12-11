@@ -1,6 +1,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+//#include <string.h>         //strcat
 #include "storage.hpp"
 #include "ssp1.h"
 //#include "gpio.hpp"
@@ -15,6 +16,7 @@
 #include "mp3Tasks.hpp"         //tasks for MP3 player
 #include "tasks.hpp"
 #include "examples/examples.hpp"
+
 //#include "def.hpp"
 //#include "player.cpp"
 #if 0
@@ -63,8 +65,108 @@ void sineTest_end(void *p) {
 }
 #endif
 
+#if 0
+FATFS Fs;
+QueueHandle_t name_queue_handle;
+QueueHandle_t data_queue_handle;
+SemaphoreHandle_t name_queue_filled_handle;
+SemaphoreHandle_t data_queue_filled_handle;
+
+
+void vReader(void *p) {
+    name_queue_handle = scheduler_task::getSharedObject("name_queue");
+    name_queue_filled_handle = scheduler_task::getSharedObject("name_queue_filled");
+
+    char song_name[32];
+    char prefix[3] = "1:";
+    char file[35] = { 0 };              // [35] so that it could handle 32 bytes + 2 bytes for '1:'
+    uint8_t data[512] = { 0 };
+    unsigned long filesize;
+    unsigned long offset = 0;
+    FRESULT fr;     /* FatFs return code */
+    FILE * fp;
+    FIL fil;        /* File object */
+
+    while(1)
+    {
+        if(xSemaphoreTake(name_queue_filled_handle, portMAX_DELAY))
+        {
+            if (xQueueReceive(name_queue_handle, &song_name, portMAX_DELAY))
+            {
+                strcpy(file, prefix);       // file = '1:'
+                strcat(file, song_name);    // file = '1:<song_name>'
+
+                fr = f_open(&fil, file, FA_READ);
+                filesize = fil.fsize;
+                f_close(&fil);
+
+                while(offset < filesize)
+                {
+                        Storage::read(file, &data, sizeof(data), offset);
+                        offset += 512;
+                        // send 512-byte chunk
+                        xQueueSend(data_queue_handle, &data, portMAX_DELAY);
+                }
+
+            }
+        }
+
+    }
+}
+
+void vPlayer(void *p) {
+    unsigned char *bufP;
+    unsigned char data[512];
+
+    while(1)
+    {
+        if(xQueueReceive(data_queue_handle, &data, 5000))
+        {
+            bufP = &data[0];
+            int success = 0;
+
+            DREQ_low();
+
+            for(int j = 0; j < 512; j+=32)
+            {
+                while (!getDREQ_lvl())
+                {
+                    continue;
+                }
+        //        ; // Wait until DREQ is high
+                for(int i = 0; i < 32; i++)
+                {
+                   ssp1_exchange_byte(*bufP++);
+                }
+            }
+
+            DREQ_high();
+
+            if(success != 0){
+                //error
+                uart0_puts("WriteSdiChar failed!\n");
+            }
+        }
+        else
+        {
+            uart0_puts("ERROR: Player task failed to receive data from queue.\n");
+        }
+    }
+}
+#endif
+
 int main(void)
 {
+#if 0
+    name_queue_handle = xQueueCreate(1, sizeof(char)*32);//create queue
+    data_queue_handle = xQueueCreate(10, sizeof(char)*512); //create queue TODO: double check size of queue
+    name_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
+
+    if(!scheduler_task::addSharedObject("name_queue_filled", name_queue_filled_handle)) //try to and check share semaphore
+    {
+        uart0_puts("ERROR: initPlayCmd() failed to create shared objects for semaphores.\n");
+    }
+#endif
     /*      INIT functions for decoder      */
     ssp1_init();                            // initialize SPI1
 //    ssp1_set_max_clock(12);                 // sets clock to 12MHz
@@ -84,8 +186,7 @@ int main(void)
         printf("Init success!\n");
     }
 
-//    xTaskCreate(sineTest_begin, "sineTest_begin", 1024, NULL, 3, NULL);
-//    xTaskCreate(sineTest_end, "sineTest_end", 1024, NULL, 2, NULL);
+
 //    vTaskStartScheduler();
 
     scheduler_add_task(new terminalTask(PRIORITY_HIGH));
@@ -93,9 +194,13 @@ int main(void)
     /* Consumes very little CPU, but need highest priority to handle mesh network ACKs */
     scheduler_add_task(new wirelessTask(PRIORITY_CRITICAL));
 
+    scheduler_add_task(new buttons());
     scheduler_add_task(new reader());
     scheduler_add_task(new player());
+
 //    scheduler_add_task(new sineTest());
+//    xTaskCreate(vReader, "reader", 1024, NULL, 2, NULL);
+//    xTaskCreate(vPlayer, "player", 1024, NULL, 3, NULL);
     scheduler_start(); ///< This shouldn't return
 
     while(1);

@@ -217,19 +217,19 @@ void Eint3Handler(void)
  */
 
 //This is where you define your ISRs
-void Port0Pin0ISR(void)
-{
-    uart0_puts("Port 0 Pin 0 ISR");
-}
+//void Port0Pin0ISR(void)
+//{
+//
+//}
 
-void Port0Pin1ISR(void)
-{
-    uart0_puts("Port 0 Pin 1 ISR");
-}
-void Port2Pin6ISR(void)
-{
-    uart0_puts("Port 2 Pin 6 ISR");
-}
+//void Port0Pin1ISR(void)
+//{
+//    uart0_puts("Port 0 Pin 1 ISR");
+//}
+//void Port2Pin6ISR(void)
+//{
+//    uart0_puts("Port 2 Pin 6 ISR");
+//}
 
 /* //Do stuff like this in main();
 int main(void)

@@ -19,6 +19,33 @@
 #include "ssp1.h"
 #include "uart0_min.h"
 #include <stdio.h>
+#include "gpioInterrupts.hpp"
+
+
+volatile SemaphoreHandle_t volume_down_handle;
+uint8_t volume;
+
+void Port0Pin0ISR(void)
+{
+    long yield = 0;
+
+    //set volume down
+//      if(volume < 0xFE) // 0xFE is silence, so only lower if louder than silence
+//      {
+//          volume += 5; //adding decreases volume
+//          if(volume >= 0xFE)//if we decrease past silence, set volume to silence
+//          {
+//              volume = 0xFE;
+//          }
+//      }
+//      setVolume(volume, volume);
+//    static BaseType_t pxHigherPriorityTaskWoken;
+//    pxHigherPriorityTaskWoken = pdFALSE;
+//    SemaphoreHandle_t volume_down_handle = shared_handlers::getSharedObject("volume_down");
+    xSemaphoreGiveFromISR(volume_down_handle, &yield);
+    u0_dbg_printf("yield is %d\n", yield);
+    portYIELD_FROM_ISR(yield);
+}
 
 reader::reader() :
     scheduler_task("MP3 Reader Task", STACK_BYTES(8192), PRIORITY_MEDIUM)
@@ -297,35 +324,15 @@ bool player::init(void)
 {
     int success = WriteSci(SCI_DECODE_TIME, 0x00);         // Reset DECODE_TIME
 
-//    while(NULL == getSharedObject("data_queue"))
-//        ;
-//    data_queue_handle = getSharedObject("data_queue");
-//
-//    while(NULL == getSharedObject("data_queue_filled"))
-//            ;
-//    data_queue_filled_handle = getSharedObject("data_queue_filled");
-//
-//    if (data_queue_handle == NULL)
-//    {
-//        printf("ERROR: Player task failed to get handle for data queue.\n");
-//    }
-//    else
-//    {
-//        printf("SUCCESS: Player task got handle for data queue.\n");
-//    }
-//    if (data_queue_filled_handle == NULL)
-//    {
-//        printf("ERROR: Player task failed to get handle for data queue semaphore.\n");
-//    }
-//    else
-//    {
-//        printf("SUCCESS: Player task got handle for data queue semaphore.\n");
-//    }
+    volume = 0x00;                                       // This is the default volume in InitVS10xx()
+    setVolume(volume, volume);
+    interrupted = false;
 
     if(success == 0)
         return true;
     else
         return false;
+
 
 }
 
@@ -336,8 +343,22 @@ bool player::run(void *p)
     //unsigned char data[512];
     unsigned char *bufP;
 
+
+
 //    while(NULL == getSharedObject("data_queue"))
+
 //        ;
+//    volume_down_handle = getSharedObject("volume_down");
+
+//    if (volume_down_handle == NULL)
+//    {
+//        u0_dbg_printf("ERROR: Player task failed to get handle for volume_down semaphore.\n");
+//    }
+//    else
+//    {
+//        u0_dbg_printf("SUCCESS: Player task got handle for volume_down semaphore.\n");
+//    }
+
     if((data_queue_handle == NULL) || (data_queue_filled_handle == NULL))
     {
         data_queue_handle = getSharedObject("data_queue");
@@ -365,6 +386,78 @@ bool player::run(void *p)
     }
 
 
+        if(xQueueReceive(data_queue_handle, &data, 5000))
+            {
+
+                // TODO: stream to mp3
+                bufP = &data[0];
+                int success = 0;
+        //        for(int i=0; (i<512 && success == 0); i+=32){
+        //            success |= WriteSdiChar(bufP, 32);
+        //            bufP += 32;
+        ////            printf((const char*)data);
+        //        }
+        //        int trackSize = 0;
+        //
+        //        while(trackSize < 32)
+        //        {
+
+                    DREQ_low();
+
+                    for(int j = 0; j < 512; j+=32)
+                    {
+                        while (!getDREQ_lvl())
+                        {
+        //                    vTaskDelay(2);
+            //                uart0_puts("d");
+                            continue;
+                        }
+                        taskENTER_CRITICAL();
+                //        ; // Wait until DREQ is high
+                        for(int i = 0; i < 32; i++)
+                        {
+                           ssp1_exchange_byte(*bufP++);
+                        }
+                        taskEXIT_CRITICAL();
+
+                    }
+        //            trackSize += 32;
+        //        }
+                DREQ_high();
+
+        //        play(data, 512);
+                if(success != 0){
+                    //error
+                    uart0_puts("WriteSdiChar failed!\n");
+        //            printf()
+
+                }
+
+                if(xSemaphoreTake(volume_down_handle, 1))
+                {
+
+                    //set volume down
+                    if(volume < 0xFE) // 0xFE is silence, so only lower if louder than silence
+                    {
+                        volume += 5; //adding decreases volume
+                        if(volume >= 0xFE)//if we decrease past silence, set volume to silence
+                        {
+                            volume = 0xFE;
+                        }
+                    }
+                    setVolume(volume, volume);
+                    u0_dbg_printf("volume lowered to %d", volume);
+                }
+
+            }
+            else
+            {
+                uart0_puts("ERROR: Player task failed to receive data from queue.\n");
+            }
+
+//           vTaskDelay(2000);
+
+#if 0
     if(xQueueReceive(data_queue_handle, &data, 5000))
     {
         // TODO: stream to mp3
@@ -407,6 +500,27 @@ bool player::run(void *p)
 //            printf()
 
         }
+
+        if (xSemaphoreTake(volume_down_handle, 0))
+           {
+               //set volume down
+               if(volume < 0xFE) // 0xFE is silence, so only lower if louder than silence
+               {
+                   volume += 5; //adding decreases volume
+                   if(volume >= 0xFE)//if we decrease past silence, set volume to silence
+                   {
+                       volume = 0xFE;
+                   }
+               }
+               setVolume(volume, volume);
+               uart0_puts("volume lowered!\n");
+    //           vTaskDelay(2000);
+           }
+           else
+           {
+               uart0_puts("ERROR: Player task failed to receive semaphore from buttons.\n");
+           }
+
 //        uart0_puts("r");
 //        int len = strlen((const char*)data);
 //        for(int i=0; i<len; i++){
@@ -437,6 +551,26 @@ bool player::run(void *p)
     {
         uart0_puts("ERROR: Player task failed to receive data from queue.\n");
     }
+#endif
+
+//    if (xSemaphoreTake(volume_down_handle, 100))
+//    {
+//        //set volume down
+//        if(volume < 0xFE) // 0xFE is silence, so only lower if louder than silence
+//        {
+//            volume += 25; //adding decreases volume
+//            if(volume >= 0xFE)//if we decrease past silence, set volume to silence
+//            {
+//                volume = 0xFE;
+//            }
+//        }
+//        setVolume(volume, volume);
+//        uart0_puts("volume lowered!\n");
+//    }
+//    else
+//    {
+//        uart0_puts("ERROR: Player task failed to receive semaphore from buttons.\n");
+//    }
     vTaskDelay(1);
     return true;
 }
@@ -466,6 +600,70 @@ bool sineTest::run(void *p)
 
     return true;
 }
+
+buttons::buttons() :
+    scheduler_task("Button Task", STACK_BYTES(4096), PRIORITY_LOW)
+{
+    //Initialize handles to null (they'll be defined in run)
+}
+
+bool buttons::init(void)
+{
+    uart0_puts("buttons initialized\n");
+    volume_down_handle = xSemaphoreCreateBinary(); //create semaphore
+
+
+    if(volume_down_handle == NULL)//check create semaphore and mutex
+    {
+        uart0_puts("ERROR: initButton() failed to create semaphores.\n");
+        return false;
+    }
+//    if(!addSharedObject("volume_down", volume_down_handle)) //try to and check share semaphore
+//    {
+//        uart0_puts("ERROR: initButton() failed to create shared objects for semaphores.\n");
+//        return false;
+//    }
+
+    // Init things once
+    gpio_interrupt.Initialize();
+
+    // Register C function which delegates interrupt handling to your C++ class function
+    isr_register(EINT3_IRQn, Eint3Handler);
+
+    // Create tasks and test your interrupt handler
+    IsrPointer port0pin0 = Port0Pin0ISR;
+
+    gpio_interrupt.AttachInterruptHandler(0, 0, port0pin0, kRisingEdge);//need to write port0pin0isr
+
+    return true;
+}
+
+bool buttons::run(void *p)
+{
+//    if (xSemaphoreTake(volume_down_handle, portMAX_DELAY))
+//       {
+//           //set volume down
+//           if(volume < 0xFE) // 0xFE is silence, so only lower if louder than silence
+//           {
+//               volume += 5; //adding decreases volume
+//               if(volume >= 0xFE)//if we decrease past silence, set volume to silence
+//               {
+//                   volume = 0xFE;
+//               }
+//           }
+//           setVolume(volume, volume);
+//           uart0_puts("volume lowered!\n");
+////           vTaskDelay(2000);
+//       }
+//       else
+//       {
+//           uart0_puts("ERROR: Player task failed to receive semaphore from buttons.\n");
+//       }
+
+
+    return true;
+}
+
 #if 0
 #include <mp3Tasks.hpp>
 #include <string.h>         //strcat
