@@ -20,6 +20,8 @@
 
 #include "i2c_base.hpp"
 #include "lpc_sys.h"
+#include <stdio.h>
+#include "printf_lib.h"
 
 
 
@@ -55,6 +57,7 @@ uint8_t I2C_Base::readReg(uint8_t deviceAddress, uint8_t registerAddress)
 bool I2C_Base::readRegisters(uint8_t deviceAddress, uint8_t firstReg, uint8_t* pData, uint32_t bytesToRead)
 {
     I2C_SET_READ_MODE(deviceAddress);
+    printf("deviceAddress: %#x\n", deviceAddress);
     return transfer(deviceAddress, firstReg, pData, bytesToRead);
 }
 
@@ -189,6 +192,20 @@ bool I2C_Base::init(uint32_t pclk, uint32_t busRateInKhz)
     return true;
 }
 
+void I2C_Base::initSlave(uint8_t slaveAddr, volatile uint8_t *buf, uint32_t bufSize)
+{
+//    i2c2_device(slaveAddr);
+        mpI2CRegs->I2ADR0 = slaveAddr;
+//        mpI2CRegs->I2MASK0 = slaveAddr;
+        mpI2CRegs->I2CONSET = 0x44;
+
+//    mTransaction.error     = 0;
+//    mTransaction.slaveAddr = slaveAddr;
+//    mTransaction.firstReg  = 0;
+    mTransaction.trxSize   = bufSize;
+    mTransaction.pSlaveData   = buf;
+//    slave_mem = buf;
+}
 
 
 /// Private ///
@@ -227,6 +244,7 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
         start           = 0x08,
         repeatStart     = 0x10,
         arbitrationLost = 0x38,
+        stop            = 0xA0,
 
         // Master Transmitter States:
         slaveAddressAcked  = 0x18,
@@ -239,6 +257,17 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
         readModeNackedBySlave = 0x48,
         dataAvailableAckSent  = 0x50,
         dataAvailableNackSent = 0x58,
+
+        // Slave Transmitter States:
+        readAck = 0xA8,
+        dataAckedbyMaster = 0xB8,
+        dataNackedbyMaster = 0xC0,
+        readNack = 0xB0,
+
+        // Slave Receiver States:
+        writeAck = 0x60,
+        dataAck  = 0x80,
+
     };
 
     mStateMachineStatus_t state = busy;
@@ -271,7 +300,7 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
                                     state = readComplete;                   \
                                 else                                        \
                                     state = writeComplete;
-
+//    printf("%#x\n", mpI2CRegs->I2STAT);
     switch (mpI2CRegs->I2STAT)
     {
         case start:
@@ -279,7 +308,19 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
             clearSIFlag();
             break;
         case repeatStart:
+            printf("repeat start\n");
+            printf("slave addr: %#x\n", mTransaction.slaveAddr);
             mpI2CRegs->I2DAT = I2C_READ_ADDR(mTransaction.slaveAddr);
+            clearSIFlag();
+            break;
+
+        case writeAck:
+//            bool slave_reg_flag;
+            slave_reg_flag = true;
+//            slave_reg_addr = 0xFF;
+            clearSTARTFlag();
+            setAckFlag();
+            u0_dbg_printf("writeAck: 0x60\n");
             clearSIFlag();
             break;
 
@@ -295,8 +336,30 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
             }
             break;
 
+        case dataAck:
+//            uint8_t slave_reg_addr;
+            u0_dbg_printf("dataAck: 0x80\n");
+//            u0_dbg_printf("flag addr: %#x\n", slave_reg_addr);
+            if(slave_reg_flag){
+                slave_reg_addr = mpI2CRegs->I2DAT;
+                u0_dbg_printf("flag:1 addr: %#x\n", slave_reg_addr);
+                slave_reg_flag = false;
+                setAckFlag();
+                clearSIFlag();
+            }
+            else {
+                u0_dbg_printf("flag:0 addr: %#x data: %#x\n", slave_reg_addr, mpI2CRegs->I2DAT);
+                *(mTransaction.pSlaveData+slave_reg_addr) = mpI2CRegs->I2DAT;
+//                slave_mem[slave_reg_addr] = mpI2CRegs->I2DAT;
+//                slave_reg_addr++;
+                ++mTransaction.pSlaveData;
+                setAckFlag();
+                clearSIFlag();
+            }
+            break;
         case dataAckedBySlave:
             if (I2C_READ_MODE(mTransaction.slaveAddr)) {
+                printf("sending repeat-start\n");
                 setSTARTFlag(); // Send Repeat-start for read-mode
                 clearSIFlag();
             }
@@ -313,6 +376,17 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
             }
             break;
 
+        case readAck:
+            printf("readAck: 0xA8\n");
+            clearSTARTFlag();
+            mpI2CRegs->I2DAT = *(mTransaction.pSlaveData+slave_reg_addr);
+//            mpI2CRegs->I2DAT = slave_mem[slave_reg_addr];
+            ++mTransaction.pSlaveData;
+//            slave_reg_addr++;
+//            --mTransaction.trxSize;
+            setAckFlag();
+            clearSIFlag();
+            break;
         /* In this state, we are about to initiate the transfer of data from slave to us
          * so we are just setting the ACK or NACK that we'll do AFTER the byte is received.
          */
@@ -326,9 +400,21 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
             }
             clearSIFlag();
             break;
+
+        case dataAckedbyMaster:
+            printf("dataAckedbyMaster: 0xB8\n");
+            clearSTARTFlag();
+            mpI2CRegs->I2DAT = *(mTransaction.pSlaveData+slave_reg_addr);
+//            mpI2CRegs->I2DAT = slave_mem[slave_reg_addr];
+            ++mTransaction.pSlaveData;
+//            slave_reg_addr++;
+
+            clearSIFlag();
+            break;
+
         case dataAvailableAckSent:
             *mTransaction.pMasterData = mpI2CRegs->I2DAT;
-            ++mTransaction.pMasterData;
+            mTransaction.pMasterData++;
             --mTransaction.trxSize;
 
             if(1 == mTransaction.trxSize) { // Only 1 more byte remaining
@@ -340,15 +426,27 @@ I2C_Base::mStateMachineStatus_t I2C_Base::i2cStateMachine()
 
             clearSIFlag();
             break;
+
         case dataAvailableNackSent: // Read last-byte from Slave
             *mTransaction.pMasterData = mpI2CRegs->I2DAT;
             setStop();
+            break;
+
+        case dataNackedbyMaster:
+            printf("dataNackedbyMaster: 0xC0\n");
+            setAckFlag();
+            clearSIFlag();
             break;
 
         case arbitrationLost:
             // We should not issue stop() in this condition, but we still need to end our  transaction.
             state = I2C_READ_MODE(mTransaction.slaveAddr) ? readComplete : writeComplete;
             mTransaction.error = mpI2CRegs->I2STAT;
+            break;
+
+        case stop:
+            setAckFlag();
+            clearSIFlag();
             break;
 
         case slaveAddressNacked:    // no break

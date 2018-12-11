@@ -70,6 +70,10 @@ bool terminalTask::taskEntry()
     /* remoteTask() creates shared object in its init(), so we can get it now */
     CommandProcessor &cp = mCmdProc;
 
+    //***MP3 Handlers***
+    cp.addHandler(playCmd, "play", "Enter the filename of an MP3. Ex: 'play song.txt'");
+//    cp.addHandler(playHandler, "play", "Play an MP3 file with name.");
+
     // System information handlers
     cp.addHandler(taskListHandler, "info",    "Task/CPU Info.  Use 'info 200' to get CPU during 200ms");
     cp.addHandler(memInfoHandler,  "meminfo", "See memory info");

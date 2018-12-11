@@ -45,6 +45,57 @@
 #include "c_tlm_stream.h"
 #include "c_tlm_var.h"
 
+//***Added code for MP3 Project
+#include "uart0_min.h"          //UART0 output in Hercules
+CMD_HANDLER_FUNC(playCmd)
+{
+    char song_name[32]; //NOTE: last bit is for '\0'
+    if(cmdParams.compareToIgnoreCase("help"))//if user enters "play help"
+    {
+        uart0_puts("\nTo play a song, type the name of an mp3 file. For example, \"play song.mp3\".\nThe filename with the file extension cannot be longer than 32 characters.\n\n");
+    }
+    else if(cmdParams.getLen() > 31)//if file name is invalid length
+    {
+        uart0_puts("\n_ERROR_: Filename is too long.\nTry to play a song with a shorter file name.\n");
+    }
+    else if(cmdParams.getLen() < 3)//if file name is invalid length
+    {
+        uart0_puts("\n_ERROR_: Filename is too short.\nTo play a song, enter the filename and file extension.\n");
+    }
+    else//assume valid song name
+    {
+        if(!cmdParams.endsWith(".mp3"))
+        {
+            uart0_puts("\n_WARNING_: Filename does not contain an MP3 file extension.");
+        }
+        //add file name to queue
+        QueueHandle_t name_queue_handle = scheduler_task::getSharedObject("name_queue");
+        SemaphoreHandle_t name_queue_filled_handle = scheduler_task::getSharedObject("name_queue_filled");
+        if((name_queue_handle != 0) && (name_queue_filled_handle != 0))
+        {
+            //output for debugging
+            //uart0_puts("\nSending the following song name to queue:");
+            for(int i = 0; i<cmdParams.getLen(); i++)
+            {
+                //uart0_putchar(cmdParams[i]);
+                song_name[i] = cmdParams[i];
+            }
+            song_name[cmdParams.getLen()] = '\0';
+            //uart0_puts("\n\n");
+            //TODO: while(uxQueueSpacesAvailable(handle)<1?), then wait for queue to be emptied (continue;)
+
+            xQueueReset( name_queue_handle ); //clear the queue before we fill it again
+            xQueueSend(name_queue_handle, &song_name, 3000);
+            xSemaphoreGive(name_queue_filled_handle); //signal request to play song
+        }
+        else
+        {
+            uart0_puts("\n_ERROR_: cmdPlay() failed to get handle for name queue and/or semaphore.\n");
+        }
+    }
+    return true;
+}
+//***End added code for MP3 project
 
 
 CMD_HANDLER_FUNC(taskListHandler)

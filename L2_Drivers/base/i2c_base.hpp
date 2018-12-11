@@ -108,6 +108,8 @@ class I2C_Base
          */
         bool checkDeviceResponse(uint8_t deviceAddress);
 
+        // slave init
+        void initSlave(uint8_t slaveAddr, volatile uint8_t *buf, uint32_t bufSize);
 
 
     protected:
@@ -138,6 +140,9 @@ class I2C_Base
         bool mDisableOperation;        ///< Tracks if I2C is disabled by disableOperation()
         SemaphoreHandle_t mI2CMutex;   ///< I2C Mutex used when FreeRTOS is running
         SemaphoreHandle_t mTransferCompleteSignal; ///< Signal that indicates read is complete
+        volatile uint8_t *slave_mem;
+        bool slave_reg_flag;
+        uint8_t slave_reg_addr;
 
         /**
          * The status of I2C is returned from the I2C function that handles state machine
@@ -158,6 +163,7 @@ class I2C_Base
             uint8_t firstReg;   ///< 1st Register to Read or Write
             uint8_t error;      ///< Error if any occurred within I2C
             uint8_t *pMasterData;  ///< Buffer of the I2C Read or Write
+            volatile uint8_t *pSlaveData;
         } mI2CTransaction_t;
 
         /// The I2C Input Output frame that contains I2C transaction information
