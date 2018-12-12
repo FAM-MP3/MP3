@@ -23,16 +23,23 @@ class reader : public scheduler_task
         bool init(void);
         bool run(void *p);
     private:
-        SemaphoreHandle_t name_queue_filled_handle;
-        SemaphoreHandle_t data_queue_filled_handle;
-        SemaphoreHandle_t spi_bus_lock;
-        QueueHandle_t name_queue_handle;
-        QueueHandle_t data_queue_handle;
+        QueueHandle_t name_queue_handle = xQueueCreate(1, sizeof(char)*32);//create queue
+        QueueHandle_t data_queue_handle = xQueueCreate(2, sizeof(char)*512); //create queue TODO: double check size of queue
+        SemaphoreHandle_t name_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
+        SemaphoreHandle_t data_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
+        SemaphoreHandle_t spi_bus_lock = xSemaphoreCreateMutex();              //create mutex
         FATFS Fs;        /* Work area (filesystem object) for logical drive */
         FIL fil;        /* File object */
         FRESULT fr;     /* FatFs return code */
-        FILE * fp;
 //        unsigned char data[512];
+        char song_name[32];
+        char prefix[3] = "1:";
+        char file[35] = { 0 };              // [35] so that it could handle 32 bytes + 2 bytes for '1:'
+        uint8_t data[512] = { 0 };
+        unsigned long filesize = 0;
+        unsigned long offset = 0;
+        //bool EndOfFile = true;
+        bool tookSemaphore = false;
 };
 
 class player : public scheduler_task
@@ -47,7 +54,6 @@ class player : public scheduler_task
         QueueHandle_t data_queue_handle;
         unsigned char data[512];
 //        uint8_t volume;
-        bool interrupted;
 };
 
 class sineTest : public scheduler_task
