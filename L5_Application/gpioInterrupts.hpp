@@ -148,7 +148,7 @@ void LabGpioInterrupts::HandleInterrupt()
     //NOTE: Need to handle multiple GPIO interrupts.
     //3. Clear the interrupt flag that caused this interrupt.
 
-    uart0_puts("Begin Handling Interrupts");
+    //uart0_puts("Begin Handling Interrupts");
     while(LPC_GPIOINT->IntStatus & (1 << 0))//while there are pending interrupts on Port 0
     {
         //Check current pin statuses
@@ -187,7 +187,7 @@ void LabGpioInterrupts::HandleInterrupt()
             }
         }
     }
-    uart0_puts("End Handling Interrupts");
+    //uart0_puts("End Handling Interrupts");
 
 }
 /**
@@ -204,7 +204,7 @@ LabGpioInterrupts gpio_interrupt;
  */
 void Eint3Handler(void)
 {
-    u0_dbg_printf("*");
+    //u0_dbg_printf("*");
     gpio_interrupt.HandleInterrupt();
 }
 

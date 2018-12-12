@@ -24,6 +24,7 @@
 #include "gpio.hpp"
 #include "LabGPIO.hpp"
 #include "def.hpp"
+#include "printf_lib.h"
 /* Download the latest VS1053a Patches package and its
    vs1053b-patches-flac.plg. If you want to use the smaller patch set
    which doesn't contain the FLAC decoder, use vs1053b-patches.plg instead.
@@ -227,7 +228,7 @@ uint16_t ReadSci(uint8_t addr) {
     success &= WriteSpiByte(addr); // SCI register number
 
     if(success != 0){
-        printf("ReadSci Failed.\n");
+        u0_dbg_printf("ReadSci Failed.\n");
         return -1;
     }
 
