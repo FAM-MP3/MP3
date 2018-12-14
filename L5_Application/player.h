@@ -36,9 +36,10 @@ int WriteSdiChar(unsigned char *data, uint16_t bytes);         // new WriteSdi
 //void InitSoftware();                                    // software init
 void setVolume(uint8_t left, uint8_t right);
 void play(unsigned char* buffer, int size);               // play song
-void DREQ_low();                                          // set DREQ low
-void DREQ_high();                                         // set DREQ high
+void xDCS_setLow();                                          // set DREQ low
+void xDCS_setHigh();                                         // set DREQ high
 bool getDREQ_lvl();                                       // get DREQ lvl
+//bool InitLCD();                                           // initializes LCD with song names
 //
 //
 ///* GPIO pins */

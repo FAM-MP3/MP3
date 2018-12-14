@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <string>
 #include "storage.hpp"
 #include "ssp1.h"
 #include "player.h"
@@ -24,6 +25,7 @@
 #include "gpio.hpp"
 #include "LabGPIO.hpp"
 #include "def.hpp"
+#include "printf_lib.h"
 /* Download the latest VS1053a Patches package and its
    vs1053b-patches-flac.plg. If you want to use the smaller patch set
    which doesn't contain the FLAC decoder, use vs1053b-patches.plg instead.
@@ -118,6 +120,7 @@ const char *afName[] = {
 };
 
 LabGPIO flash_cs(0,6);
+SemaphoreHandle_t bus_lock = xSemaphoreCreateMutex();
 
 void adesto_ds()
 {
@@ -199,18 +202,28 @@ uint8_t ReadSpiByte(void)
 
 int WriteSci(uint8_t addr, uint16_t data)
 {
+//    if(GPIO2.getLevel())           // If DREQ is high before a SCI operation, do not start a new SCI/SDI operation before DREQ is high again.
+//    {
+//        while (GPIO2.getLevel())
+//        ; // Wait until DREQ is low
+//    }
     while (!GPIO2.getLevel())
     ; // Wait until DREQ is high
     int result = 0;
 
-    GPIO3.setLow(); // Activate xCS
-    result &= WriteSpiByte(2); // Write command code
-    result &= WriteSpiByte(addr); // SCI register number
+    if(xSemaphoreTake(bus_lock,1000))
+    {
+        GPIO3.setLow(); // Activate xCS
+        result &= WriteSpiByte(2); // Write command code
+        result &= WriteSpiByte(addr); // SCI register number
 
-    result &= WriteSpiByte((uint8_t)(data >> 8));
-    result &= WriteSpiByte((uint8_t)(data & 0xFF));
+        result &= WriteSpiByte((uint8_t)(data >> 8));
+        result &= WriteSpiByte((uint8_t)(data & 0xFF));
 
-    GPIO3.setHigh(); // Deactivate xCS
+        GPIO3.setHigh(); // Deactivate xCS
+        xSemaphoreGive(bus_lock);
+    }
+
     if(result != 0)
         printf("WriteSci Failed.\n");
     return result;
@@ -220,20 +233,26 @@ uint16_t ReadSci(uint8_t addr) {
     uint16_t res;
     while (!GPIO2.getLevel())
     ; // Wait until DREQ is high
-    GPIO3.setLow(); // Activate xCS
 
-    int success = 0;
-    success &= WriteSpiByte(3); // Read command code
-    success &= WriteSpiByte(addr); // SCI register number
+    if(xSemaphoreTake(bus_lock,1000))
+    {
+        GPIO3.setLow(); // Activate xCS
 
-    if(success != 0){
-        printf("ReadSci Failed.\n");
-        return -1;
+        int success = 0;
+        success &= WriteSpiByte(3); // Read command code
+        success &= WriteSpiByte(addr); // SCI register number
+
+        if(success != 0){
+            printf("ReadSci Failed.\n");
+            return -1;
+        }
+
+        res = (uint16_t)ReadSpiByte() << 8;
+        res |= ReadSpiByte();
+        GPIO3.setHigh(); // Deactivate xCS
+        xSemaphoreGive(bus_lock);
     }
 
-    res = (uint16_t)ReadSpiByte() << 8;
-    res |= ReadSpiByte();
-    GPIO3.setHigh(); // Deactivate xCS
 
     return res;
 }
@@ -246,13 +265,18 @@ int WriteSdi(const uint8_t *data, uint8_t bytes) {
     while (GPIO2.getLevel() == 0)
     ; // Wait until DREQ is high
 
-    GPIO4.setLow(); // Activate xDCS
+    if(xSemaphoreTake(bus_lock,1000))
+    {
+        GPIO4.setLow(); // Activate xDCS
 
-    for (i=0; i<bytes; i++) {
-        WriteSpiByte(*data++);
+        for (i=0; i<bytes; i++) {
+            WriteSpiByte(*data++);
+        }
+
+        GPIO4.setHigh(); // Dectivate xDCS
+        xSemaphoreGive(bus_lock);
     }
 
-    GPIO4.setHigh(); // Dectivate xDCS
 
     return 0; // Ok
 }
@@ -268,14 +292,19 @@ int WriteSdiChar(unsigned char* data, uint16_t bytes) {
     while (GPIO2.getLevel() == 0)
         continue; // Wait until DREQ is high
 
-    GPIO4.setLow(); // Activate xDCS
+    if(xSemaphoreTake(bus_lock,1000))
+    {
+        GPIO4.setLow(); // Activate xDCS
 
-    for (i=0; i<bytes; i++) {
-//        success |= WriteSpiByte(*data++);
-        ssp1_exchange_byte(*data++);
+        for (i=0; i<bytes; i++) {
+    //        success |= WriteSpiByte(*data++);
+            ssp1_exchange_byte(*data++);
+        }
+
+        GPIO4.setHigh(); // Dectivate xDCS
+        xSemaphoreGive(bus_lock);
     }
 
-    GPIO4.setHigh(); // Dectivate xDCS
 
 //    for (i=0; i<bytes; i++) {
 //        GPIO4.setLow(); // Activate xDCS
@@ -1423,23 +1452,28 @@ void setVolume(uint8_t left, uint8_t right)
     WriteSci(SCI_VOL, v);
 }
 
-//void play(unsigned char *buffer, int size)
-//{
-//    GPIO4.setLow(); // Activate xDCS
-//
-//   for(int j = 0; j < size; j += 32)
-//   {
-//       while (!GPIO2.getLevel())
-//       ; // Wait until DREQ is high
-//       for(int i = 0; i < 32; i++)
-//       {
-////           ssp1_exchange_byte(*buffer++);
-//           WriteSpiByte();
-//       }
-//   }
-//
-//   GPIO4.setHigh(); // Deactivate xDCS
-//}
+void play(unsigned char *buffer, int size)
+{
+    while (GPIO2.getLevel() == 0)
+    ; // Wait until DREQ is high
+
+    if(xSemaphoreTake(bus_lock,1000))
+    {
+        GPIO4.setLow(); // Activate xDCS
+
+        for(int j = 0; j < size; j += 32)
+        {
+           while (!GPIO2.getLevel())
+           ; // Wait until DREQ is high
+           for(int i = 0; i < 32; i++)
+           {
+               ssp1_exchange_byte(*buffer++);
+           }
+        }
+        GPIO4.setHigh(); // Deactivate xDCS
+        xSemaphoreGive(bus_lock);
+    }
+}
 
 //void play(unsigned char* buffer, int size)
 //{
@@ -1467,12 +1501,12 @@ void setVolume(uint8_t left, uint8_t right)
 //    GPIO4.setHigh(); // Deactivate xDCS
 //}
 
-void DREQ_low()
+void xDCS_setLow()
 {
     GPIO4.setLow(); // Activate xDCS
 }
 
-void DREQ_high()
+void xDCS_setHigh()
 {
     GPIO4.setHigh(); // Activate xDCS
 }
@@ -1481,5 +1515,52 @@ bool getDREQ_lvl()
 {
     return GPIO2.getLevel();
 }
+
+//bool InitLCD()
+//{
+//    DIR Dir;
+//    FILINFO Finfo;
+//    FRESULT returnCode;
+//    const char dirPath[] = "1:";
+////    std::string songNames[10];
+//    char* songNames[10];
+//    int count = 0;
+//
+//    #if _USE_LFN
+//        char Lfname[_MAX_LFN];
+//    #endif
+//
+//    #if _USE_LFN
+//        Finfo.lfname = Lfname;
+//        Finfo.lfsize = sizeof(Lfname);
+//    #endif
+//
+//    if (FR_OK != (returnCode = f_opendir(&Dir, dirPath))) {
+//        u0_dbg_printf("Invalid directory: |%s| (Error %i)\n", dirPath, returnCode);
+//        return false;
+//    }
+//
+//    for (; ;)
+//    {
+//        returnCode = f_readdir(&Dir, &Finfo);
+//        if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
+//            break;
+//        }
+////        u0_dbg_printf("%s\n", &(Finfo.fname));
+//    #if _USE_LFN
+//        if(Finfo.lfname[strlen(Finfo.lfname)-1] == '3')
+//        {
+//            char *filename = strtok(Finfo.lfname, ".");
+////            filename[20] = '\0';
+//            songNames[count] = filename;
+//            u0_dbg_printf("%s\n", songNames[count]);
+//            count++;
+//        }
+//    #endif
+//    }
+//
+//    return true;
+//
+//}
 
 

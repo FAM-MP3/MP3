@@ -54,6 +54,7 @@ class player : public scheduler_task
         QueueHandle_t data_queue_handle;
         unsigned char data[512];
 //        uint8_t volume;
+//        bool interrupted;
 };
 
 class sineTest : public scheduler_task
