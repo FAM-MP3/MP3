@@ -21,25 +21,45 @@
 #include <stdio.h>
 //#include "gpioInterrupts.hpp"
 #include "eint.h"
+#include "InterruptLab.h"
 
 static volatile bool pauseSong, pauseToggled; //need to add settingsOpen
 SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
 uint8_t volume;
 
+volatile SemaphoreHandle_t pause_toggle_handle = NULL;
+volatile SemaphoreHandle_t pause_player_handle = NULL;
+volatile SemaphoreHandle_t play_player_handle = NULL;
+
+
+
+LabGpioInterrupts gpio_interrupt;
+void Eint3Handler(void)
+{
+    gpio_interrupt.HandleInterrupt();
+}
+
+//static volatile bool pauseSong = false;
+
+//static volatile bool pauseToggled; //need to add settingsOpen
+
+
 void Port0Pin1ISR(void)
 {
     //toggle pause song
     pauseToggled = true;
-
 }
 
 void Port0Pin0ISR(void)
 {
     //toggle volume
-
-
+    //pauseToggled = true;
+    long yield = 0;
+    xSemaphoreGiveFromISR(pause_toggle_handle, &yield);
+    portYIELD_FROM_ISR(yield);
 }
 
+// ------------------------------------------- READER -------------------------------------------
 reader::reader() :
     scheduler_task("MP3 Reader Task", STACK_BYTES(8192), PRIORITY_LOW)
 {
@@ -109,9 +129,13 @@ bool reader::run(void *p)
         Storage::read(file, &data, sizeof(data), offset);
         offset += 512;
         // send 512-byte chunk
+//       while(pauseSong)//if we paused, wait here until unpaused
+//       {
+//           vTaskDelay(1); //wait here until song is unpaused.
+//       }
 
         xQueueSend(data_queue_handle, &data, portMAX_DELAY);
-        if(xSemaphoreTake(name_queue_filled_handle, 1))
+        if(xSemaphoreTake(name_queue_filled_handle, 0))
        {
            tookSemaphore = true;
            offset = filesize; //stop playing this song
@@ -156,7 +180,7 @@ bool reader::run(void *p)
 }
 
 
-/* ------------------------------------------- PLAYER------------------------------------------- */
+// ------------------------------------------- PLAYER -------------------------------------------
 
 player::player() :
     scheduler_task("MP3 Player Task", STACK_BYTES(4096), PRIORITY_MEDIUM)
@@ -186,7 +210,8 @@ bool player::init(void)
 bool player::run(void *p)
 {
     unsigned char *bufP;
-
+    //    static uint8_t data[512];
+    //unsigned char data[512];
 
     if((data_queue_handle == NULL) || (data_queue_filled_handle == NULL))
     {
@@ -210,13 +235,15 @@ bool player::run(void *p)
             u0_dbg_printf("SUCCESS: Player task got handle for data queue semaphore.\n");
         }
     }
+        while(pauseSong);//if we paused, wait here until unpaused
 
-        while(pauseSong)//if we paused, wait here until unpaused
+        if(xSemaphoreTake(pause_player_handle, 0))//if we paused, wait here until unpaused
         {
-            vTaskDelay(2); //wait here until song is unpaused.
+            xSemaphoreTake(play_player_handle, portMAX_DELAY);
+            vTaskDelay(100);
         }
 
-        if(xQueueReceive(data_queue_handle, &data, 5000))
+        if(xQueueReceive(data_queue_handle, &data, 1000))
         {
 
             bufP = &data[0];
@@ -224,57 +251,37 @@ bool player::run(void *p)
 
             play(bufP, 512);
 
-            if(success != 0){
-                //error
-                uart0_puts("WriteSdiChar failed!\n");
-            }
+//            for(int j = 0; j < 512; j+=32)
+//            {
+//               taskENTER_CRITICAL();
+//                while (!getDREQ_lvl())
+//                {
+//                    continue;
+//                }// Wait until DREQ is high
+//                for(int i = 0; i < 32; i++)
+//                {
+//                   ssp1_exchange_byte(*bufP++);
+//                }
+//                taskEXIT_CRITICAL();
+//
+//                if(success != 0){
+//                    //error
+//                    uart0_puts("WriteSdiChar failed!\n");
+//                }
+//            }
         }
         else
         {
             uart0_puts("ERROR: Player task failed to receive data from queue.\n");
+            vTaskDelay(2);
         }
 
-//           vTaskDelay(2000);
-
-//        if (xSemaphoreTake(volume_down_handle, 0))
-//       {
-//           //set volume down
-//           if(volume < 0xFE) // 0xFE is silence, so only lower if louder than silence
-//           {
-//               volume += 5; //adding decreases volume
-//               if(volume >= 0xFE)//if we decrease past silence, set volume to silence
-//               {
-//                   volume = 0xFE;
-//               }
-//           }
-//           setVolume(volume, volume);
-//           uart0_puts("volume lowered!\n");
-////           vTaskDelay(2000);
-//       }
-//       else
-//       {
-//           uart0_puts("ERROR: Player task failed to receive semaphore from buttons.\n");
-//       }
-//            if(xSemaphoreTake(volume_down_handle, 1))
-//            {
-//
-//                //set volume down
-//                if(volume < 0xFE) // 0xFE is silence, so only lower if louder than silence
-//                {
-//                    volume += 5; //adding decreases volume
-//                    if(volume >= 0xFE)//if we decrease past silence, set volume to silence
-//                    {
-//                        volume = 0xFE;
-//                    }
-//                }
-//                setVolume(volume, volume);
-//                u0_dbg_printf("volume lowered to %d", volume);
-//            }
-    vTaskDelay(1);
+    vTaskDelay(2);
     return true;
 }
 
-//Buttons Task
+// ------------------------------------------- BUTTONS -------------------------------------------
+
 buttons::buttons() :
     scheduler_task("Button Task", STACK_BYTES(4096), PRIORITY_HIGH)
 {
@@ -285,7 +292,6 @@ bool buttons::init(void)
     pauseToggled = false;
     pauseSong = false;
 
-
     if(volume_down_handle == NULL)//check create semaphore and mutex
     {
         uart0_puts("ERROR: initButton() failed to create semaphores.\n");
@@ -295,8 +301,35 @@ bool buttons::init(void)
     eint3_enable_port0(1, eint_rising_edge, Port0Pin0ISR);
 //    eint3_enable_port0(1, eint_rising_edge, Port0Pin1ISR);    // for pause
 
+    pause_toggle_handle = xSemaphoreCreateBinary();
+    pause_player_handle = xSemaphoreCreateBinary();
+    play_player_handle = xSemaphoreCreateBinary();
+
 #if 0
 >>>>>>> Stashed changes
+=======
+    uart0_puts("buttons initialized\n");
+//    volume_down_handle = xSemaphoreCreateBinary(); //create semaphore
+//
+//
+//    if(volume_down_handle == NULL)//check create semaphore and mutex
+//    {
+//        uart0_puts("ERROR: initButton() failed to create semaphores.\n");
+//        return false;
+//    }
+//    if(!addSharedObject("volume_down", volume_down_handle)) //try to and check share semaphore
+//    {
+//        uart0_puts("ERROR: initButton() failed to create shared objects for semaphores.\n");
+//        return false;
+//    }
+
+    pauseSong = false;
+
+    pause_toggle_handle = xSemaphoreCreateBinary();
+    pause_player_handle = xSemaphoreCreateBinary();
+    play_player_handle = xSemaphoreCreateBinary();
+
+>>>>>>> 21e32e695c35c7b55a3c06448f2cb8a6de6d9369
     // Init things once
     gpio_interrupt.Initialize();
 
@@ -318,32 +351,32 @@ bool buttons::init(void)
 
 bool buttons::run(void *p)
 {
-    while(!pauseToggled)//wait until we need to address a button press
-    {
-        vTaskDelay(2);//must be greater than 0 to allow lower priority tasks to run
-    }
-
-    if(pauseToggled)//if we need to, address pause
+    if(xSemaphoreTake(pause_toggle_handle, portMAX_DELAY))
     {
         vTaskDelay(250);//wait for bouncing to stop
-        taskENTER_CRITICAL();//don't allow toggles while we're reacting to them
-        if(pauseSong)
-           {
-               pauseSong = false;
-               u0_dbg_printf("song unpaused\n");
-           }
-           else
-           {
-               pauseSong = true;
-               u0_dbg_printf("song paused\n");
-           }
-        pauseToggled = false;
-        taskEXIT_CRITICAL();
+        while(xSemaphoreTake(pause_toggle_handle, 0))
+            {
+                   continue; //take any remaining semaphores
+            }
+
+       if(pauseSong)
+          {
+              pauseSong = false;
+              xSemaphoreGive(play_player_handle);
+              u0_dbg_printf("song unpaused\n");
+          }
+          else
+          {
+              pauseSong = true;
+              xSemaphoreGive(pause_player_handle);
+              u0_dbg_printf("song paused\n");
+          }
     }
+    vTaskDelay(2);
     return true;
 }
 
-//sineTest Task
+// ------------------------------------------- SINE TEST -------------------------------------------
 sineTest::sineTest() :
     scheduler_task("MP3 Sine Test Task", STACK_BYTES(2048), PRIORITY_MEDIUM)
 {

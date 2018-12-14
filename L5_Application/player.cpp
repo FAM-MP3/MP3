@@ -251,8 +251,12 @@ uint16_t ReadSci(uint8_t addr) {
         res |= ReadSpiByte();
         GPIO3.setHigh(); // Deactivate xCS
         xSemaphoreGive(bus_lock);
-    }
 
+        if(success != 0){
+            u0_dbg_printf("ReadSci Failed.\n");
+            return -1;
+        }
+    }
 
     return res;
 }
