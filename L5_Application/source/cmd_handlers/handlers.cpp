@@ -47,6 +47,7 @@
 
 //***Added code for MP3 Project
 #include "uart0_min.h"          //UART0 output in Hercules
+#include "mp3Tasks.hpp"
 CMD_HANDLER_FUNC(playCmd)
 {
     char song_name[32]; //NOTE: last bit is for '\0'
@@ -71,7 +72,7 @@ CMD_HANDLER_FUNC(playCmd)
         //add file name to queue
         QueueHandle_t name_queue_handle = scheduler_task::getSharedObject("name_queue");
         SemaphoreHandle_t name_queue_filled_handle = scheduler_task::getSharedObject("name_queue_filled");
-        if((name_queue_handle != 0) && (name_queue_filled_handle != 0))
+        if((name_queue_handle != NULL) && (name_queue_filled_handle != NULL))
         {
             //output for debugging
             //uart0_puts("\nSending the following song name to queue:");
@@ -88,9 +89,13 @@ CMD_HANDLER_FUNC(playCmd)
             xQueueSend(name_queue_handle, &song_name, 3000);
             xSemaphoreGive(name_queue_filled_handle); //signal request to play song
         }
-        else
+        if(name_queue_handle == NULL)
         {
-            uart0_puts("\n_ERROR_: cmdPlay() failed to get handle for name queue and/or semaphore.\n");
+            uart0_puts("\n_ERROR_: cmdPlay() failed to get handle for name queue.\n");
+        }
+        if(name_queue_filled_handle == NULL)
+        {
+            uart0_puts("\n_ERROR_: cmdPlay() failed to get handle for semaphore.\n");
         }
     }
     return true;

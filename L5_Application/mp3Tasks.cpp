@@ -75,14 +75,14 @@ bool reader::init(void)
 {
     //TASK 1: Create queue for filename of song.
     //Fixed 32-byte song name: 32 chars because each char is 1 byte.
-    name_queue_handle = xQueueCreate(1, sizeof(char)*32);//create queue
-    data_queue_handle = xQueueCreate(2, sizeof(char)*512); //create queue TODO: double check size of queue
+//    name_queue_handle = xQueueCreate(1, sizeof(char)*32);//create queue
+//    data_queue_handle = xQueueCreate(2, sizeof(char)*512); //create queue TODO: double check size of queue
     if(name_queue_handle == NULL || data_queue_handle == NULL)//check that queue is created
     {
         uart0_puts("ERROR: initPlayCmd() failed to create queues.\n");
         return false;
     }
-    if(!addSharedObject("name_queue", name_queue_handle) || !addSharedObject("data_queue", data_queue_handle))//try to and check sharing queue
+    if((!addSharedObject("name_queue", name_queue_handle)) || (!addSharedObject("data_queue", data_queue_handle)))//try to and check sharing queue
     {
         uart0_puts("ERROR: initPlayCmd() failed to create shared objects for queue.\n");
         return false;
@@ -95,7 +95,7 @@ bool reader::init(void)
         uart0_puts("ERROR: initPlayCmd() failed to create semaphores.\n");
         return false;
     }
-    if(!addSharedObject("name_queue_filled", name_queue_filled_handle) || !addSharedObject("data_queue_filled", data_queue_filled_handle) || !addSharedObject("spi_bus_lock", spi_bus_lock)) //try to and check share semaphore
+    if((!addSharedObject("name_queue_filled", name_queue_filled_handle)) || (!addSharedObject("data_queue_filled", data_queue_filled_handle)) || (!addSharedObject("spi_bus_lock", spi_bus_lock))) //try to and check share semaphore
     {
         uart0_puts("ERROR: initPlayCmd() failed to create shared objects for semaphores.\n");
         return false;
@@ -195,8 +195,8 @@ bool player::init(void)
     int success = WriteSci(SCI_DECODE_TIME, 0x00);         // Reset DECODE_TIME
 
 //    eint3_enable_port0(1, eint_rising_edge, Port0Pin0ISR);
-//    volume = 0x00;                                       // This is the default volume in InitVS10xx()
-    volume = 70;
+    volume = 0x00;                                       // This is the default volume in InitVS10xx()
+//    volume = 70;
     setVolume(volume, volume);
 //    interrupted = false;
 

@@ -233,6 +233,7 @@ void vLCDUI(void *p)
                 cursor_pos++;
 
             }
+            vTaskDelay(1);
         }
 }
 void vLCD_cursor(void *p)
@@ -323,9 +324,10 @@ int main(void)
     scheduler_add_task(new wirelessTask(PRIORITY_CRITICAL));
     xTaskCreate(vLCDUI, "lcd", 1024, NULL, 1, NULL);
 //    xTaskCreate(vLCD_cursor, "lcd_cursor", 1024, NULL, 1, NULL);
-//    scheduler_add_task(new buttons());
-//    scheduler_add_task(new reader());
-//    scheduler_add_task(new player());
+    scheduler_add_task(new buttons());
+    scheduler_add_task(new reader());
+    scheduler_add_task(new player());
+//    scheduler_add_task(new sineTest());
 
 //    scheduler_add_task(new sineTest());
 //    xTaskCreate(vReader, "reader", 1024, NULL, 2, NULL);
