@@ -27,6 +27,8 @@ class reader : public scheduler_task
         QueueHandle_t data_queue_handle = xQueueCreate(2, sizeof(char)*512); //create queue TODO: double check size of queue
         SemaphoreHandle_t name_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
         SemaphoreHandle_t data_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
+        SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary(); //create semaphore
+        SemaphoreHandle_t pause_player_semaphore_handle = NULL; //create semaphore
         SemaphoreHandle_t spi_bus_lock = xSemaphoreCreateMutex();              //create mutex
         FATFS Fs;        /* Work area (filesystem object) for logical drive */
         FIL fil;        /* File object */
@@ -39,7 +41,7 @@ class reader : public scheduler_task
         unsigned long filesize = 0;
         unsigned long offset = 0;
         //bool EndOfFile = true;
-        bool tookSemaphore = false;
+        bool tookSongQSemaphore = false, tookPauseSemaphore = false;
 };
 
 class player : public scheduler_task
@@ -49,12 +51,14 @@ class player : public scheduler_task
         bool init(void);
         bool run(void *p);
     private:
-        SemaphoreHandle_t data_queue_filled_handle;         // didn't manage to implement this semaphore. TODO: verify if it's needed
+        SemaphoreHandle_t pause_player_handle = xSemaphoreCreateBinary();
+        QueueHandle_t data_queue_handle= NULL;
 //        SemaphoreHandle_t volume_down_handle;
-        QueueHandle_t data_queue_handle;
         unsigned char data[512];
 //        uint8_t volume;
 //        bool interrupted;
+        bool initialized = false;
+        unsigned char *bufP = NULL;
 };
 
 class sineTest : public scheduler_task

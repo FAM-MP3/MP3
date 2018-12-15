@@ -322,7 +322,7 @@ int main(void)
 
     /* Consumes very little CPU, but need highest priority to handle mesh network ACKs */
     scheduler_add_task(new wirelessTask(PRIORITY_CRITICAL));
-    xTaskCreate(vLCDUI, "lcd", 1024, NULL, 1, NULL);
+//    xTaskCreate(vLCDUI, "lcd", 1024, NULL, 1, NULL);
 //    xTaskCreate(vLCD_cursor, "lcd_cursor", 1024, NULL, 1, NULL);
     scheduler_add_task(new buttons());
     scheduler_add_task(new reader());
