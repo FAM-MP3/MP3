@@ -72,7 +72,7 @@ bool terminalTask::taskEntry()
 
     //***MP3 Handlers***
     cp.addHandler(playCmd, "play", "Enter the filename of an MP3. Ex: 'play song.txt'");
-    cp.addHandler(pauseCmd, "pause", "Enter 'pause' to toggle pausing/unpausing the current song.");
+    //cp.addHandler(pauseCmd, "pause", "Enter 'pause' to toggle pausing/unpausing the current song.");
 
     // System information handlers
     cp.addHandler(taskListHandler, "info",    "Task/CPU Info.  Use 'info 200' to get CPU during 200ms");

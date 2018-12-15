@@ -27,7 +27,7 @@ class reader : public scheduler_task
         QueueHandle_t data_queue_handle = xQueueCreate(2, sizeof(char)*512); //create queue TODO: double check size of queue
         SemaphoreHandle_t name_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
         SemaphoreHandle_t data_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
-        SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary(); //create semaphore
+        //SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary(); //create semaphore
         SemaphoreHandle_t pause_player_semaphore_handle = NULL; //create semaphore
         SemaphoreHandle_t spi_bus_lock = xSemaphoreCreateMutex();              //create mutex
         FATFS Fs;        /* Work area (filesystem object) for logical drive */

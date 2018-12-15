@@ -30,25 +30,28 @@ uint8_t volume;
 volatile SemaphoreHandle_t pause_toggle_handle = NULL;
 volatile SemaphoreHandle_t pause_player_handle = NULL;
 volatile SemaphoreHandle_t play_player_handle = NULL;
+*/
 
-
-
+volatile SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary();
 LabGpioInterrupts gpio_interrupt;
 void Eint3Handler(void)
 {
     gpio_interrupt.HandleInterrupt();
 }
-*/
+
 //static volatile bool pauseSong = false;
 
 //static volatile bool pauseToggled; //need to add settingsOpen
 
 
-//void Port0Pin1ISR(void)
-//{
-//    //toggle pause song
-//    pauseToggled = true;
-//}
+void Port0Pin1ISR(void)
+{
+    u0_dbg_printf("*");
+    long yield = 0;
+    xSemaphoreGiveFromISR(pause_reader_semaphore_handle, &yield);
+    portYIELD_FROM_ISR(yield);
+
+}
 
 //void Port0Pin0ISR(void)
 //{
@@ -90,12 +93,12 @@ bool reader::init(void)
 
     //TASK 2: Create semaphore for play song request.
 
-    if(name_queue_filled_handle == NULL || data_queue_filled_handle == NULL || spi_bus_lock == NULL || pause_reader_semaphore_handle == NULL)//check create semaphore and mutex
+    if(name_queue_filled_handle == NULL || data_queue_filled_handle == NULL || spi_bus_lock == NULL /*|| pause_reader_semaphore_handle == NULL*/)//check create semaphore and mutex
     {
         uart0_puts("ERROR: initPlayCmd() failed to create semaphores.\n");
         return false;
     }
-    if((!addSharedObject("name_queue_filled", name_queue_filled_handle)) || (!addSharedObject("data_queue_filled", data_queue_filled_handle)) || (!addSharedObject("spi_bus_lock", spi_bus_lock)) || (!addSharedObject("pause_reader_semaphore", pause_reader_semaphore_handle))) //try to and check share semaphore
+    if((!addSharedObject("name_queue_filled", name_queue_filled_handle)) || (!addSharedObject("data_queue_filled", data_queue_filled_handle)) || (!addSharedObject("spi_bus_lock", spi_bus_lock)) /*|| (!addSharedObject("pause_reader_semaphore", pause_reader_semaphore_handle))*/) //try to and check share semaphore
     {
         uart0_puts("ERROR: initPlayCmd() failed to create shared objects for semaphores.\n");
         return false;
@@ -240,7 +243,7 @@ bool player::run(void *p)
 buttons::buttons() :
     scheduler_task("Button Task", STACK_BYTES(4096), PRIORITY_HIGH)
 {
-    //Initialize handles to null (they'll be defined in run)
+
 }
 bool buttons::init(void)
 {
@@ -254,7 +257,7 @@ bool buttons::init(void)
 //    }
 //
 //    eint3_enable_port0(1, eint_rising_edge, Port0Pin0ISR);
-////    eint3_enable_port0(1, eint_rising_edge, Port0Pin1ISR);    // for pause
+        eint3_enable_port0(1, eint_rising_edge, Port0Pin1ISR);    // for pause
 //
 //    pause_toggle_handle = xSemaphoreCreateBinary();
 //    pause_player_handle = xSemaphoreCreateBinary();

@@ -100,27 +100,27 @@ CMD_HANDLER_FUNC(playCmd)
     }
     return true;
 }
-CMD_HANDLER_FUNC(pauseCmd)
-{
-    if(cmdParams.compareToIgnoreCase("help"))//if user enters "pause help"
-    {
-        uart0_puts("\nIf a song is current playing, type 'pause' to pause it. To unpause a song, type 'pause' again.\n");
-    }
-    else
-    {
-        SemaphoreHandle_t pause_reader_semaphore_handle = scheduler_task::getSharedObject("pause_reader_semaphore");
-        if(pause_reader_semaphore_handle == NULL)
-        {
-            uart0_puts("\n_ERROR_: cmdPause() failed to get handle for semaphore.\n");
-            return false;
-        }
-        else
-        {
-            xSemaphoreGive(pause_reader_semaphore_handle); //signal request to pause song
-        }
-    }
-    return true;
-}
+//CMD_HANDLER_FUNC(pauseCmd)
+//{
+//    if(cmdParams.compareToIgnoreCase("help"))//if user enters "pause help"
+//    {
+//        uart0_puts("\nIf a song is current playing, type 'pause' to pause it. To unpause a song, type 'pause' again.\n");
+//    }
+//    else
+//    {
+//        SemaphoreHandle_t pause_reader_semaphore_handle = scheduler_task::getSharedObject("pause_reader_semaphore");
+//        if(pause_reader_semaphore_handle == NULL)
+//        {
+//            uart0_puts("\n_ERROR_: cmdPause() failed to get handle for semaphore.\n");
+//            return false;
+//        }
+//        else
+//        {
+//            xSemaphoreGive(pause_reader_semaphore_handle); //signal request to pause song
+//        }
+//    }
+//    return true;
+//}
 //***End added code for MP3 project
 
 

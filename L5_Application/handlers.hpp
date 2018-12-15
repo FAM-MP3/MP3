@@ -27,7 +27,7 @@
 
 // *****Handlers for MP3 Project******
 CMD_HANDLER_FUNC(playCmd);
-CMD_HANDLER_FUNC(pauseCmd);
+//CMD_HANDLER_FUNC(pauseCmd);
 
 /// Handler for task list & CPU Information
 CMD_HANDLER_FUNC(taskListHandler);
