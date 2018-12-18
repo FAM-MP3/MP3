@@ -120,7 +120,7 @@ const char *afName[] = {
 };
 
 LabGPIO flash_cs(0,6);
-SemaphoreHandle_t bus_lock = xSemaphoreCreateMutex();
+volatile SemaphoreHandle_t bus_lock = xSemaphoreCreateMutex();
 
 void adesto_ds()
 {

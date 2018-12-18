@@ -53,9 +53,9 @@ class player : public scheduler_task
     private:
         SemaphoreHandle_t pause_player_handle = xSemaphoreCreateBinary();
         QueueHandle_t data_queue_handle= NULL;
-//        SemaphoreHandle_t volume_down_handle;
+//        SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
         unsigned char data[512];
-//        uint8_t volume;
+        uint8_t volume = 50;
 //        bool interrupted;
         bool initialized = false;
         unsigned char *bufP = NULL;
