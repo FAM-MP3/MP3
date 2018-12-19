@@ -166,6 +166,8 @@ bool reader::run(void *p)
     {
         tookSongQSemaphore = false;
         tookPauseSemaphore = false;
+        u0_dbg_printf("received song! %s\n", song_name);
+//        tookSemaphore = false;
         offset = 0; //reset offset
         strcpy(file, prefix);       // file = '1:'
         strcat(file, song_name);    // file = '1:<song_name>'

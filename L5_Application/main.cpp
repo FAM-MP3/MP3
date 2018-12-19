@@ -24,12 +24,19 @@ bool InitLCD();
 
 LCDTask lcd;
 LabUART uart1;
-LabGPIO switch0(0,1);
+LabGPIO switch0(0,1);   // for scrolling through songs
+LabGPIO switch1(0,0);   // for selecting song
 bool (LCDTask::*line_ptr_arr[])() = {&LCDTask::LCDLine1, &LCDTask::LCDLine2, &LCDTask::LCDLine3, &LCDTask::LCDLine4};
 //char *songNames[10];
 char songNames[10][_MAX_LFN];
 char fileNames[10][_MAX_LFN];
 int songName_pos = 0;
+int line_pos = 0;
+int fileName_pos = 0;
+bool selectFlag = false;
+
+QueueHandle_t name_queue_handle;
+SemaphoreHandle_t name_queue_filled_handle;
 
 //#include "def.hpp"
 //#include "player.cpp"
@@ -192,7 +199,7 @@ void sendLCDData(char data[]){
 
 void vLCDUI(void *p)
 {
-    char selectLine1[] = {"...Your songs..."};
+    char selectLine1[] = {"___Your songs___"};
     (lcd.*line_ptr_arr[0])();
     sendLCDData(selectLine1);
 
@@ -207,14 +214,17 @@ void vLCDUI(void *p)
     (lcd.*line_ptr_arr[3])();
     sendLCDData(songNames[++songName_pos]);
 
-    int cursor_pos = 1;
+//    int cursor_pos = 1;
         while(1)
         {
             if(switch0.getLevel())
             {
-                if(cursor_pos == 4)
+                selectFlag = false;
+                line_pos++;
+
+                if(line_pos == 4)
                 {
-                    cursor_pos = 0;
+                    line_pos = 0;
                     lcd.LCDClearDisplay();
                     for(int i=0; i<4; i++)
                     {
@@ -226,42 +236,65 @@ void vLCDUI(void *p)
                         lcd.LCDSet_Cursor(i+1, 0);
                     }
                 }
-                (lcd.*line_ptr_arr[cursor_pos])();
+                (lcd.*line_ptr_arr[line_pos])();
 //                lcd.LCDLine2();
                 lcd.LCDBlinkCursor();
-                cursor_pos++;
+
+                fileName_pos++;
+                if(fileName_pos == 10)
+                    fileName_pos = 0;
+//                line_pos++;
 
             }
             vTaskDelay(1);
         }
 }
-void vLCD_cursor(void *p)
+void vLCDSelectButton(void *p)
 {
-    int cursor_pos = 1;
+    char select[] = {"*"};
+    char space[] = {" "};
+    int star_pos=0;
 
     while(1)
     {
             //Selecting song button
-            if(switch0.getLevel())
+            if(switch1.getLevel())
             {
-                (lcd.*line_ptr_arr[cursor_pos])();
-//                lcd.LCDLine2();
-                lcd.LCDBlinkCursor();
-                cursor_pos++;
-                if(cursor_pos == 4)
-                    cursor_pos = 1;
+                selectFlag = true;
+                if(selectFlag)
+                {
+                    (lcd.*line_ptr_arr[star_pos])();
+                    sendLCDData(space);
+                    lcd.LCDSet_Cursor(star_pos+1, 0);
 
+                    star_pos = line_pos;
+                    u0_dbg_printf("selected song: %s\n", fileNames[fileName_pos-1]);
+                    // BUG: this writes * to the next line
+                    (lcd.*line_ptr_arr[line_pos])();
+                    sendLCDData(select);
+    //                lcd.LCDBlinkCursor();
+                    lcd.LCDSet_Cursor(line_pos+1, 0);
+                    selectFlag = false;
+                    name_queue_handle = scheduler_task::getSharedObject("name_queue");
+                    name_queue_filled_handle = scheduler_task::getSharedObject("name_queue_filled");
+                    if(name_queue_handle == NULL)
+                    {
+                        uart0_puts("\n_ERROR_: vLCDSelectButton() failed to get handle for name queue.\n");
+                    }
+                    if(name_queue_filled_handle == NULL)
+                    {
+                        uart0_puts("\n_ERROR_: vLCDSelectButton() failed to get handle for semaphore.\n");
+                    }
+
+                    if((name_queue_handle != NULL) && (name_queue_filled_handle != NULL))
+                    {
+                        xQueueReset( name_queue_handle ); //clear the queue before we fill it again
+                        xQueueSend(name_queue_handle, &fileNames[fileName_pos-1], 3000);
+                        xSemaphoreGive(name_queue_filled_handle); //signal request to play song
+                    }
+                }
             }
-//            else if(SW.getSwitch(2))
-//            {
-//                lcd.LCDLine3();
-//                lcd.LCDBlinkCursor();
-//            }
-//            else if(SW.getSwitch(3))
-//            {
-//                 lcd.LCDLine4();
-//                 lcd.LCDBlinkCursor();
-//            }
+            vTaskDelay(500);
     }
 }
 
@@ -321,12 +354,15 @@ int main(void)
 
     /* Consumes very little CPU, but need highest priority to handle mesh network ACKs */
     scheduler_add_task(new wirelessTask(PRIORITY_CRITICAL));
-//    xTaskCreate(vLCDUI, "lcd", 1024, NULL, 1, NULL);
+    //    scheduler_add_task(new buttons());
+        scheduler_add_task(new reader());
+        scheduler_add_task(new player());
+    //    scheduler_add_task(new sineTest());
+
+    xTaskCreate(vLCDUI, "lcd", 1024, NULL, 1, NULL);
 //    xTaskCreate(vLCD_cursor, "lcd_cursor", 1024, NULL, 1, NULL);
-    scheduler_add_task(new buttons());
-    scheduler_add_task(new reader());
-    scheduler_add_task(new player());
-//    scheduler_add_task(new sineTest());
+    xTaskCreate(vLCDSelectButton, "lcd_select", 1024, NULL, 1, NULL);
+
 
 //    scheduler_add_task(new sineTest());
 //    xTaskCreate(vReader, "reader", 1024, NULL, 2, NULL);
@@ -339,33 +375,6 @@ int main(void)
 
 bool InitLCD()
 {
-//#if _USE_LFN
-//    DIR Dir;
-//    FILINFO Finfo;
-//    FRESULT returnCode = FR_OK;
-//    char buff [100] = {0};
-//    int playlist_size=0;
-//
-//    char Lfname[_MAX_LFN];
-//
-//    const char *dirPath = "1:";
-//    f_opendir(&Dir, dirPath);
-//    for (;;)
-//    {
-//    Finfo.lfname = Lfname;
-//    Finfo.lfsize = sizeof(Lfname);
-//
-//    returnCode = f_readdir(&Dir, &Finfo);
-//    if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
-//    break;
-//    }
-//    sprintf(buff, "1:%s", Lfname);
-//        //uart0_puts(buff);
-//        strncpy(songNames[playlist_size],buff,100);
-//        playlist_size++;
-//    }
-//#endif
-
     DIR Dir;
     FILINFO Finfo;
     FRESULT returnCode;
@@ -406,11 +415,11 @@ bool InitLCD()
     #if _USE_LFN
         if(Finfo.lfname[strlen(Finfo.lfname)-1] == '3')
         {
-            filename = strtok(Finfo.lfname, ".");
-
             // store the file names as "1:<song name.mp3>" to the fileNames array
-            sprintf(fileNamesBuff, "1:%s", filename);
+            sprintf(fileNamesBuff, "1:%s", Finfo.lfname);
             strncpy(fileNames[count], fileNamesBuff, sizeof(songNamesBuff));
+
+            filename = strtok(Finfo.lfname, ".");
 
             // put a space in front of the song name and store it to the songNames array
             sprintf(songNamesBuff, " %s", filename);
