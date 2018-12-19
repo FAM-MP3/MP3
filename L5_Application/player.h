@@ -46,6 +46,8 @@ void sendLCDData(char data[]);                              // writes LCD Data
 //void ClearStar();                                           // clears * in every line
 double ConvertVolume(uint8_t vol);                          // converts volume to %
 bool InitLCD();                                             // initializes LCD with song names
+double ConvertBass(uint8_t bass);                           // converts bass to %
+void setBass(uint8_t enhancement);
 
 
 //bool InitLCD();                                           // initializes LCD with song names

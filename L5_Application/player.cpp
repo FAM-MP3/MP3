@@ -1469,6 +1469,17 @@ void setVolume(uint8_t left, uint8_t right)
     WriteSci(SCI_VOL, v);
 }
 
+void setBass(uint8_t enhancement)
+{
+    uint16_t data = 0;
+    uint8_t freq = 0x08;
+    enhancement = enhancement << 4;
+    enhancement += freq;
+    data += enhancement;
+
+    WriteSci(SCI_BASS, data);
+}
+
 void play(unsigned char *buffer, int size)
 {
     while (GPIO2.getLevel() == 0)
@@ -1609,8 +1620,13 @@ double ConvertVolume(uint8_t vol)
     v = vol;
     v <<= 8;
     v |= vol;
-    u0_dbg_printf("volume: %x\n", v);
+//    u0_dbg_printf("volume: %x\n", v);
     return (v*100/65278);
+}
+
+double ConvertBass(uint8_t bass)
+{
+    return ((bass-2)*100/15);
 }
 
 bool InitLCD()

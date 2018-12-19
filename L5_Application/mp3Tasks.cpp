@@ -36,11 +36,16 @@ volatile SemaphoreHandle_t play_player_handle = NULL;
 volatile SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t volume_up_handle = xSemaphoreCreateBinary();
+volatile SemaphoreHandle_t bass_down_handle = xSemaphoreCreateBinary();
+volatile SemaphoreHandle_t bass_up_handle = xSemaphoreCreateBinary();
+//volatile SemaphoreHandle_t treble_down_handle = xSemaphoreCreateBinary();
+//volatile SemaphoreHandle_t treble_up_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t button_ready_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t scroll_down_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t scroll_up_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t lcd_new_song_handle = xSemaphoreCreateBinary(); // either semaphoregive this or pause_reader_semaphore_handle
 volatile SemaphoreHandle_t volume_changed_handle = xSemaphoreCreateBinary();
+volatile SemaphoreHandle_t bass_changed_handle = xSemaphoreCreateBinary();
 
 
 static volatile bool pauseButtonReady = true;
@@ -51,6 +56,8 @@ static volatile bool scrollUpButtonReady = true;
 static volatile bool scrollDownButtonReady = true;
 static volatile bool buttonReady = true;
 static volatile bool songPaused = false;
+static volatile bool bassDownButtonReady = true;
+static volatile bool bassUpButtonReady = true;
 
 static bool (LCDTask::*line_ptr_arr[])() = {&LCDTask::LCDLine1, &LCDTask::LCDLine2, &LCDTask::LCDLine3, &LCDTask::LCDLine4};
 int numSongs = 0;
@@ -83,6 +90,7 @@ LabGPIO settingsButton(0,30);            // for scrolling through settings pages
 LabGpioInterrupts gpio_interrupt;
 
 static volatile uint8_t volume = 40;
+static volatile uint8_t bass = 2;
 
 void Eint3Handler(void)
 {
@@ -130,14 +138,19 @@ void Port0Pin29ISR(void) //yellow
 void Port0Pin0ISR(void)
 {
     taskENTER_CRITICAL();
-    if(volumeDownButtonReady && buttonReady && scrollDownButtonReady)
+    if(volumeDownButtonReady && buttonReady && scrollDownButtonReady && bassDownButtonReady)
     {
 
         buttonReady = false;
         u0_dbg_printf("v");//debug for bouncing
         long yield = 0;
-        //settingsPage = 0 => song list, 1 => volume
-        if(settingsPage == 1)
+        //settingsPage = 0 => song list, 1 => volume, 2 => bass
+        if(settingsPage == 2)
+        {
+            bassDownButtonReady = false;
+            xSemaphoreGiveFromISR(bass_down_handle, &yield);
+        }
+        else if(settingsPage == 1)
         {
             volumeDownButtonReady = false;
             xSemaphoreGiveFromISR(volume_down_handle, &yield);
@@ -159,14 +172,19 @@ void Port0Pin0ISR(void)
 void Port0Pin1ISR(void)
 {
     taskENTER_CRITICAL();
-    if(volumeUpButtonReady && buttonReady && scrollUpButtonReady)
+    if(volumeUpButtonReady && buttonReady && scrollUpButtonReady && bassUpButtonReady)
     {
         buttonReady = false;
         u0_dbg_printf("^");//debug for bouncing
         long yield = 0;
 
-        //settingsPage = 0 => song list, 1 => volume
-        if(settingsPage == 1)
+        //settingsPage = 0 => song list, 1 => volume, 2 => bass
+        if(settingsPage == 2)
+        {
+            bassUpButtonReady = false;
+            xSemaphoreGiveFromISR(bass_up_handle, &yield);
+        }
+        else if(settingsPage == 1)
         {
             volumeUpButtonReady = false;
             xSemaphoreGiveFromISR(volume_up_handle, &yield);
@@ -286,6 +304,20 @@ bool reader::run(void *p)
                vTaskDelay(10);
            }
        }
+       if(!bassDownButtonReady)
+       {
+           while(!bassDownButtonReady)
+           {
+               vTaskDelay(10);
+           }
+       }
+       else if(!bassUpButtonReady)
+       {
+           while(!bassUpButtonReady)
+           {
+               vTaskDelay(10);
+           }
+       }
        else if(xSemaphoreTake(name_queue_filled_handle, 0))//If we get a semaphore for a new song while a song is currently playing
        {
             tookSongQSemaphore = true; //we don't need to take the semaphore again
@@ -399,7 +431,6 @@ bool player::run(void *p)
         u0_dbg_printf("\nvol is %d\n", volume);//debug for bouncing
   //      vTaskDelay(100 / portTICK_PERIOD_MS); //wait 1 second for button bounce
         taskENTER_CRITICAL();
-        volumeDownButtonReady = true;
         xSemaphoreGive(volume_changed_handle);
         taskEXIT_CRITICAL();
 
@@ -419,6 +450,30 @@ bool player::run(void *p)
         xSemaphoreGive(volume_changed_handle);
         taskEXIT_CRITICAL();
 
+    }
+    else if((xSemaphoreTake(bass_down_handle, 0) == pdTRUE))//if we get a request to increase bass
+    {
+        vTaskDelay(300 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        bass = ((bass - 1) < 2)?2:(bass - 1);
+        setBass(bass);
+
+        u0_dbg_printf("\nbass is %d\n", bass);//debug for bouncing
+  //      vTaskDelay(100 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        taskENTER_CRITICAL();
+        xSemaphoreGive(bass_changed_handle);
+        taskEXIT_CRITICAL();
+    }
+    else if((xSemaphoreTake(bass_up_handle, 0) == pdTRUE))//if we get a request to increase bass
+    {
+        vTaskDelay(300 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        bass = ((bass + 1) > 15)?15:(bass + 1);
+        setBass(bass);
+
+        u0_dbg_printf("\nbass is %d\n", bass);//debug for bouncing
+  //      vTaskDelay(100 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        taskENTER_CRITICAL();
+        xSemaphoreGive(bass_changed_handle);
+        taskEXIT_CRITICAL();
     }
     else if(xQueueReceive(data_queue_handle, &data, 5000))//if we can get song data from the queue
     {
@@ -489,7 +544,7 @@ bool buttons::run(void *p)
 //              u0_dbg_printf("song paused\n");
 //          }
 //    }
-    if(xSemaphoreTake(button_ready_handle, 0)) //if we get a semaphore to pause the song
+    if(xSemaphoreTake(button_ready_handle, 0)) //if we get a semaphore
        {
 //        static volatile bool pauseButtonReady = true;
 //        static volatile bool selectButtonReady = true;
@@ -500,11 +555,12 @@ bool buttons::run(void *p)
 //        static volatile bool buttonReady = true;
 //        static volatile bool songPaused = false;
 
-            while(!(pauseButtonReady && volumeUpButtonReady && volumeDownButtonReady && selectButtonReady && scrollUpButtonReady && scrollDownButtonReady))
+            while(!(pauseButtonReady && volumeUpButtonReady && volumeDownButtonReady && selectButtonReady && scrollUpButtonReady && scrollDownButtonReady && bassUpButtonReady && bassDownButtonReady))
             {
-                vTaskDelay(2); //wait until all buttons are ready
+                vTaskDelay(2);
             }
             vTaskDelay(700 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+            //u0_dbg_printf("button is ready\n");
             taskENTER_CRITICAL();
             buttonReady = true;
             taskEXIT_CRITICAL();
@@ -639,6 +695,7 @@ bool LCD_UI::run(void *p)
 //    {
         if(xSemaphoreTake(scroll_down_handle, 0))
         {
+
             selectFlag = false;
             highlighted_has_star = false;
             line_pos++;
@@ -680,7 +737,7 @@ bool LCD_UI::run(void *p)
                     lcd.LCDSetCursor(i+1, 0);
 //                        u0_dbg_printf("song %s, current %s\n", songNames[songName_pos], playingSong);
 //                        if(songNames[songName_pos] == playingSong)
-                    if(strcmp(songNames[songName_pos], playingSong) == 0)
+                    if((strcmp(songNames[songName_pos], playingSong) == 0) && (playingSong != NULL))
                     {
 //                            u0_dbg_printf("similar song %s %s\n", songNames[songName_pos], playingSong);
                         sendLCDData(star);
@@ -721,6 +778,7 @@ bool LCD_UI::run(void *p)
 
         if(xSemaphoreTake(scroll_up_handle, 0))
         {
+//            u0_dbg_printf("song[numSongs]: %s\n", songNames[numSongs-1]);
             selectFlag = false;
             highlighted_has_star = false;
             line_pos--;
@@ -737,7 +795,7 @@ bool LCD_UI::run(void *p)
                     {
                         songName_pos--;
                         if(songName_pos == -1)
-                            songName_pos = numSongs;
+                            songName_pos = numSongs-1;
 //                                u0_dbg_printf("songName_pos: %d\n", songName_pos);
                     }
 //                        fileName_pos--;
@@ -759,7 +817,7 @@ bool LCD_UI::run(void *p)
                     sprintf(tempBuff, "%s", songNames[songName_pos]);
                     strncpy(savedScreenLine[i], tempBuff, sizeof(tempBuff));
 
-                    if(strcmp(songNames[songName_pos], playingSong) == 0)
+                    if((strcmp(songNames[songName_pos], playingSong) == 0) && (playingSong != NULL))
                     {
 //                            u0_dbg_printf("similar song %s %s\n", songNames[songName_pos], playingSong);
                         sendLCDData(star);
@@ -768,7 +826,7 @@ bool LCD_UI::run(void *p)
 
                     songName_pos--;
                     if(songName_pos == -1)
-                        songName_pos = numSongs;
+                        songName_pos = numSongs-1;
 //                            u0_dbg_printf("songName_pos: %d\n", songName_pos);
                 }
             }
@@ -778,13 +836,13 @@ bool LCD_UI::run(void *p)
 
             fileName_pos--;
             if(fileName_pos == -1)
-                fileName_pos = numSongs;
+                fileName_pos = numSongs-1;
 //                line_pos++;
             if(!toggleDirection)
             {
                 fileName_pos--;
                 if(fileName_pos == -1)
-                    fileName_pos = numSongs;
+                    fileName_pos = numSongs-1;
                 line_offset = 0;
             }
 
@@ -983,7 +1041,7 @@ bool LCD_Settings::run(void *p)
         if(settingsPage == 3)
             settingsPage = 0;
 
-        u0_dbg_printf("settingsPage: %d\n", settingsPage);
+//        u0_dbg_printf("settingsPage: %d\n", settingsPage);
         if(settingsPage == 0)
         {
             if(changedSettings)
@@ -1022,6 +1080,10 @@ bool LCD_Settings::run(void *p)
             changedSettings = true;
             lcd.LCDClearDisplay();
             sendLCDData(bassTrebleScreen);
+            (lcd.*line_ptr_arr[2])();                   // go to line 3
+            bass_percentage = (ConvertBass(bass));
+            sprintf(bass_line, "       %.2f%%", bass_percentage);
+            sendLCDData(bass_line);
             (lcd.*line_ptr_arr[line_pos])();
         }
 
@@ -1043,8 +1105,7 @@ bool LCD_Settings::run(void *p)
 //                sendLCDData(songNames[++songName_pos]);
 //            }
     }
-    if(settingsPage == 1)
-    {
+
         if(xSemaphoreTake(volume_changed_handle, 0))
         {
             (lcd.*line_ptr_arr[2])();                   // go to line 3
@@ -1054,9 +1115,25 @@ bool LCD_Settings::run(void *p)
 //                vol = ConvertVolume(volume);
             sendLCDData(vol);
             (lcd.*line_ptr_arr[line_pos])();
+            taskENTER_CRITICAL();
             volumeUpButtonReady = true;
+            volumeDownButtonReady = true;
+            taskEXIT_CRITICAL();
         }
-    }
+
+        if(xSemaphoreTake(bass_changed_handle, 0))
+        {
+            (lcd.*line_ptr_arr[2])();                   // go to line 3
+            bass_percentage = (ConvertBass(bass));
+            sprintf(bass_line, "       %.2f%%", bass_percentage);
+            sendLCDData(bass_line);
+            (lcd.*line_ptr_arr[line_pos])();
+            taskENTER_CRITICAL();
+            bassUpButtonReady = true;
+            bassDownButtonReady = true;
+            taskEXIT_CRITICAL();
+        }
+
 
     vTaskDelay(100);
     return true;

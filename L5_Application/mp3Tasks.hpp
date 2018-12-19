@@ -115,7 +115,8 @@ class LCD_Settings : public scheduler_task
         bool run(void *p);
     private:
         char vol[20];
-        double percentage;
+        char bass_line[20];
+        double percentage, bass_percentage;
         bool changedSettings = false;                   // true when settingsButton is toggled
 
 };
