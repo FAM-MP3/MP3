@@ -10,6 +10,14 @@
 #include "utilities.h"
 
 LabUART uart;
+LCDTask::LCDTask()
+{
+    uart.Initialize(LabUART::Uart2, 9600);
+}
+//void LCDTask::setUART(LabUART passed_uart)
+//{
+//    uart= passed_uart;
+//}
 bool LCDTask :: LCDClearDisplay()
 {
     uart.Transmit(0xFE);
@@ -78,7 +86,7 @@ bool LCDTask :: LCDCursorPosition()
     return true;
 }
 
-bool LCDTask :: LCDSet_Cursor(int line, int position)
+bool LCDTask :: LCDSetCursor(int line, int position)
 {
     uart.Transmit(0xFE);
 
@@ -143,6 +151,14 @@ bool LCDTask :: LCDScrollRight()
 {
     uart.Transmit(0xFE);
     uart.Transmit(0x1C);
+    delay_ms(100);
+    return true;
+}
+
+bool LCDTask :: LCDSetSplashScreen()
+{
+    uart.Transmit(0x7C);
+    uart.Transmit(0x09);
     delay_ms(100);
     return true;
 }

@@ -20,176 +20,52 @@
 #include "LabGPIO.hpp"
 #include "printf_lib.h"
 
+//static int numSongs = 0;
+//static LCDTask lcd;
+//static LabUART uart1;
+
+#if 0
 bool InitLCD();
+void ClearStar();
+double ConvertVolume(uint8_t vol);
 
-LCDTask lcd;
-LabUART uart1;
-LabGPIO switch0(0,1);   // for scrolling through songs
-LabGPIO switch1(0,0);   // for selecting song
-bool (LCDTask::*line_ptr_arr[])() = {&LCDTask::LCDLine1, &LCDTask::LCDLine2, &LCDTask::LCDLine3, &LCDTask::LCDLine4};
-//char *songNames[10];
-char songNames[10][_MAX_LFN];
-char fileNames[10][_MAX_LFN];
-int songName_pos = 0;
-int line_pos = 0;
-int fileName_pos = 0;
-bool selectFlag = false;
+//LCDTask lcd;
+//LabUART uart1;
+//LabGPIO settingsButton(0,0);            // for scrolling through settings pages
+//LabGPIO playPauseButton(0,1);           // for pause/play song
+//LabGPIO upButton(0,29);                 // for scrolling up
+//LabGPIO downButton(0,30);               // for scrolling down
 
-QueueHandle_t name_queue_handle;
-SemaphoreHandle_t name_queue_filled_handle;
+//LabGPIO settingsButton(0,30);            // for scrolling through settings pages
+//LabGPIO playPauseButton(0,29);           // for pause/play song
+//LabGPIO upButton(0,1);                  // for scrolling up
+//LabGPIO downButton(0,0);                  // for scrolling down
 
-//#include "def.hpp"
-//#include "player.cpp"
-#if 0
-void sineTest_begin(void *p) {
-//    reset();  // hardware is already init
-
-    uint16_t mode = ReadSci(SCI_MODE);
-    mode |= 0x0020;
-    WriteSci(SCI_MODE, mode);
-
-    while(1)
-    {
-        while (GPIO2.read() == 0)
-        ; // Wait until DREQ is high
-
-        GPIO4.setLow(); // Activate xDCS
-        WriteSpiByte(0x53);
-        WriteSpiByte(0xEF);
-        WriteSpiByte(0x6E);
-        WriteSpiByte(0x7E); //n
-        WriteSpiByte(0x00);
-        WriteSpiByte(0x00);
-        WriteSpiByte(0x00);
-        WriteSpiByte(0x00);
-        GPIO4.setHigh(); // Deactivate xDCS
-
-        vTaskDelay(1000);
-    }
-}
-
-void sineTest_end(void *p) {
-
-    while(1)
-    {
-        GPIO4.setLow(); // Activate xDCS
-        WriteSpiByte(0x45);
-        WriteSpiByte(0x78);
-        WriteSpiByte(0x69);
-        WriteSpiByte(0x74);
-        WriteSpiByte(0x00);
-        WriteSpiByte(0x00);
-        WriteSpiByte(0x00);
-        WriteSpiByte(0x00);
-        GPIO4.setHigh(); // Deactivate xDCS
-    }
-}
-#endif
-
-#if 0
-FATFS Fs;
-QueueHandle_t name_queue_handle;
-QueueHandle_t data_queue_handle;
-SemaphoreHandle_t name_queue_filled_handle;
-SemaphoreHandle_t data_queue_filled_handle;
-
-
-void vReader(void *p) {
-    name_queue_handle = scheduler_task::getSharedObject("name_queue");
-    name_queue_filled_handle = scheduler_task::getSharedObject("name_queue_filled");
-
-    char song_name[32];
-    char prefix[3] = "1:";
-    char file[35] = { 0 };              // [35] so that it could handle 32 bytes + 2 bytes for '1:'
-    uint8_t data[512] = { 0 };
-    unsigned long filesize;
-    unsigned long offset = 0;
-    FRESULT fr;     /* FatFs return code */
-    FILE * fp;
-    FIL fil;        /* File object */
-
-    while(1)
-    {
-        if(xSemaphoreTake(name_queue_filled_handle, portMAX_DELAY))
-        {
-            if (xQueueReceive(name_queue_handle, &song_name, portMAX_DELAY))
-            {
-                strcpy(file, prefix);       // file = '1:'
-                strcat(file, song_name);    // file = '1:<song_name>'
-
-                fr = f_open(&fil, file, FA_READ);
-                filesize = fil.fsize;
-                f_close(&fil);
-
-                while(offset < filesize)
-                {
-                        Storage::read(file, &data, sizeof(data), offset);
-                        offset += 512;
-                        // send 512-byte chunk
-                        xQueueSend(data_queue_handle, &data, portMAX_DELAY);
-                }
-
-            }
-        }
-
-    }
-}
-
-void vPlayer(void *p) {
-    unsigned char *bufP;
-    unsigned char data[512];
-
-    while(1)
-    {
-        if(xQueueReceive(data_queue_handle, &data, 5000))
-        {
-            bufP = &data[0];
-            int success = 0;
-
-            DREQ_low();
-
-            for(int j = 0; j < 512; j+=32)
-            {
-                while (!getDREQ_lvl())
-                {
-                    continue;
-                }
-        //        ; // Wait until DREQ is high
-                for(int i = 0; i < 32; i++)
-                {
-                   ssp1_exchange_byte(*bufP++);
-                }
-            }
-
-            DREQ_high();
-
-            if(success != 0){
-                //error
-                uart0_puts("WriteSdiChar failed!\n");
-            }
-        }
-        else
-        {
-            uart0_puts("ERROR: Player task failed to receive data from queue.\n");
-        }
-    }
-}
-#endif
-
-void sendLCDData(char data[]){
-    char check = '\0';
-    int counter = 0;
-    while(data[counter] != check){
-        uart1.Transmit(data[counter]);
-        counter++;
-        delay_ms(1);
-    }
-}
+//bool (LCDTask::*line_ptr_arr[])() = {&LCDTask::LCDLine1, &LCDTask::LCDLine2, &LCDTask::LCDLine3, &LCDTask::LCDLine4};
+////char *songNames[10];
+//char songNames[10][_MAX_LFN];
+//char fileNames[10][_MAX_LFN];
+//char playingSong[_MAX_LFN];
+//char tempBuff[_MAX_LFN];
 //
-//void sendLCDData(volatile char* data){
+//int songName_pos = 0;                           // song name's position
+//int line_pos = 0;                               // lcd line's position
+//int fileName_pos = 0;                           // file name's position
+//bool toggleDirection = false;                   // false = down, true = up
+//bool selectFlag = false;                        //
+//bool highlighted_has_star = false;              // true when the current song highlighted in LCD is playing
+//char star[] = {"*"};
+//char space[] = {" "};
+//int settingsPage = 0;                           // 0 = song list, 1 = volume, 2 = bass/treble
+//char savedScreenLine[4][_MAX_LFN];               // buffer to save song list when switching settings
+//bool changedSettings = false;                   // true when settingsButton is toggled
+
+QueueHandle_t name_queue_handle;
+SemaphoreHandle_t name_queue_filled_handle;
+
+//void sendLCDData(char data[]){
 //    char check = '\0';
 //    int counter = 0;
-////    u0_dbg_printf("%s\n", data[0]);
 //    while(data[counter] != check){
 //        uart1.Transmit(data[counter]);
 //        counter++;
@@ -199,82 +75,236 @@ void sendLCDData(char data[]){
 
 void vLCDUI(void *p)
 {
-    char selectLine1[] = {"___Your songs___"};
+    char selectLine1[] = {" ___Your songs___"};
     (lcd.*line_ptr_arr[0])();
     sendLCDData(selectLine1);
+//    saveScreenLine[0] = selectLine1;
+    sprintf(tempBuff, "%s", selectLine1);
+    strncpy(savedScreenLine[0], tempBuff, sizeof(tempBuff));
 
-    (lcd.*line_ptr_arr[1])();
-//    char temp[20];
-//    temp = songNames[songName_pos];
-    sendLCDData(songNames[songName_pos]);
+    // write the next 3 lines
+    for(int i=0; i<3; i++)
+    {
+        songName_pos = i;
+        (lcd.*line_ptr_arr[i+1])();
+        sendLCDData(songNames[songName_pos]);
 
-    (lcd.*line_ptr_arr[2])();
-    sendLCDData(songNames[++songName_pos]);
-
-    (lcd.*line_ptr_arr[3])();
-    sendLCDData(songNames[++songName_pos]);
+//        saveScreenLine[i+1] = songNames[songName_pos+i];
+        sprintf(tempBuff, "%s", songNames[songName_pos]);
+        strncpy(savedScreenLine[i+1], tempBuff, sizeof(tempBuff));
+    }
+//    u0_dbg_printf("songName_pos: %d\n", songName_pos);
+//
+//    (lcd.*line_ptr_arr[1])();
+////    char temp[20];
+////    temp = songNames[songName_pos];
+//    sendLCDData(songNames[songName_pos]);
+//    saveScreenLine[1] = songNames[songName_pos];
+//
+//    (lcd.*line_ptr_arr[2])();
+//    sendLCDData(songNames[++songName_pos]);
+//
+//    ++songName_pos;
+//    (lcd.*line_ptr_arr[3])();
+//    sendLCDData(songNames[songName_pos]);
 
 //    int cursor_pos = 1;
         while(1)
         {
-            if(switch0.getLevel())
+            if(settingsPage == 0)
             {
-                selectFlag = false;
-                line_pos++;
-
-                if(line_pos == 4)
+                if(downButton.getLevel())
                 {
-                    line_pos = 0;
-                    lcd.LCDClearDisplay();
-                    for(int i=0; i<4; i++)
+                    selectFlag = false;
+                    highlighted_has_star = false;
+                    line_pos++;
+
+                    if(line_pos == 4)
                     {
-                        songName_pos++;
-                        if(songName_pos == 10)
-                            songName_pos = 0;
-                        (lcd.*line_ptr_arr[i])();
-                        sendLCDData(songNames[songName_pos]);
-                        lcd.LCDSet_Cursor(i+1, 0);
+                        line_pos = 0;
+                        lcd.LCDClearDisplay();
+
+                        if(toggleDirection)
+                        {
+                            for(int j=0; j<4; j++) // point to the last line's songName_pos
+                            {
+                                songName_pos++;
+                                if(songName_pos == 10)
+                                    songName_pos = 0;
+                            }
+    //                        fileName_pos++;
+    //                        if(fileName_pos == 10)
+    //                            fileName_pos = 0;
+//                            u0_dbg_printf("songName_pos: %d\n", songName_pos);
+                        }
+
+                        for(int i=0; i<4; i++)
+                        {
+                            songName_pos++;
+                            if(songName_pos == 10)
+                                songName_pos = 0;
+    //                        u0_dbg_printf("songName_pos = %d\n", songName_pos);
+    //                        u0_dbg_printf("line # %d, song_pos = %d songName = %s\n", i, songName_pos, songNames[songName_pos]);
+                            (lcd.*line_ptr_arr[i])();
+                            sendLCDData(songNames[songName_pos]);
+
+                            // save lines to buffer in case of settings switch
+                            sprintf(tempBuff, "%s", songNames[songName_pos]);
+                            strncpy(savedScreenLine[i], tempBuff, sizeof(tempBuff));
+
+    //                        u0_dbg_printf("writing %s\n", songNames[songName_pos]);
+                            lcd.LCDSetCursor(i+1, 0);
+    //                        u0_dbg_printf("song %s, current %s\n", songNames[songName_pos], playingSong);
+    //                        if(songNames[songName_pos] == playingSong)
+                            if(strcmp(songNames[songName_pos], playingSong) == 0)
+                            {
+    //                            u0_dbg_printf("similar song %s %s\n", songNames[songName_pos], playingSong);
+                                sendLCDData(star);
+                                lcd.LCDSetCursor(i+1, 0);
+                            }
+
+//                            u0_dbg_printf("songName_pos: %d\n", songName_pos);
+                        }
                     }
+                    (lcd.*line_ptr_arr[line_pos])();
+    //                lcd.LCDLine2();
+                    lcd.LCDBlinkCursor();
+
+                    if(toggleDirection)
+                    {
+                        fileName_pos++;
+                        if(fileName_pos == 10)
+                            fileName_pos = 0;
+                    }
+
+                    u0_dbg_printf("file name: %s playing song: %s\n", songNames[fileName_pos], playingSong);
+                    if(strcmp(songNames[fileName_pos], playingSong) == 0)
+                    {
+                        u0_dbg_printf("Highlighted song %s %s\n", songNames[fileName_pos], playingSong);
+                        highlighted_has_star = true;
+                    }
+
+
+                    fileName_pos++;
+                    if(fileName_pos == 10)
+                        fileName_pos = 0;
+    //                line_pos++;
+                    toggleDirection = false;
                 }
-                (lcd.*line_ptr_arr[line_pos])();
-//                lcd.LCDLine2();
-                lcd.LCDBlinkCursor();
 
-                fileName_pos++;
-                if(fileName_pos == 10)
-                    fileName_pos = 0;
-//                line_pos++;
+                // BUG: highlight is true for the previous line
+                // BUG: song names arent in sync when going up/down
+                // BUG: lcd not displaying correct songs, but pos is correct
+                if(upButton.getLevel())
+                {
+                    selectFlag = false;
+                    highlighted_has_star = false;
+                    line_pos--;
 
+                    if(line_pos == -1) // if you end up in the previous page
+                    {
+                        line_pos = 3;
+                        lcd.LCDClearDisplay();
+
+                        // point to the first line's songName_pos before decrementing
+                        if(!toggleDirection)
+                        {
+                            for(int j=0; j<4; j++)
+                            {
+                                songName_pos--;
+                                if(songName_pos == -1)
+                                    songName_pos = 9;
+//                                u0_dbg_printf("songName_pos: %d\n", songName_pos);
+                            }
+    //                        fileName_pos--;
+    //                        if(fileName_pos == -1)
+    //                            fileName_pos = 9;
+                        }
+
+                        for(int i=3; i>-1; i--)
+                        {
+    //                        u0_dbg_printf("line # %d, song_pos = %d songName = %s\n", i, songName_pos, songNames[songName_pos]);
+                            (lcd.*line_ptr_arr[i])();
+                            sendLCDData(songNames[songName_pos]);
+    //                        u0_dbg_printf("writing %s\n", songNames[songName_pos]);
+                            lcd.LCDSetCursor(i+1, 0);
+    //                        u0_dbg_printf("song %s, current %s\n", songNames[songName_pos], playingSong);
+    //                        if(songNames[songName_pos] == playingSong)
+
+                            // save lines to buffer in case of settings switch
+                            sprintf(tempBuff, "%s", songNames[songName_pos]);
+                            strncpy(savedScreenLine[i], tempBuff, sizeof(tempBuff));
+
+                            if(strcmp(songNames[songName_pos], playingSong) == 0)
+                            {
+    //                            u0_dbg_printf("similar song %s %s\n", songNames[songName_pos], playingSong);
+                                sendLCDData(star);
+                                lcd.LCDSetCursor(i+1, 0);
+                            }
+
+                            songName_pos--;
+                            if(songName_pos == -1)
+                                songName_pos = 9;
+//                            u0_dbg_printf("songName_pos: %d\n", songName_pos);
+                        }
+                    }
+                    (lcd.*line_ptr_arr[line_pos])();
+    //                lcd.LCDLine2();
+                    lcd.LCDBlinkCursor();
+
+                    fileName_pos--;
+                    if(fileName_pos == -1)
+                        fileName_pos = 9;
+    //                line_pos++;
+                    if(!toggleDirection)
+                    {
+                        fileName_pos--;
+                        if(fileName_pos == -1)
+                            fileName_pos = 9;
+                    }
+
+    //                u0_dbg_printf("file name: %s\n", songNames[fileName_pos-1]);
+                    u0_dbg_printf("file name: %s playing song: %s\n", songNames[fileName_pos], playingSong);
+                    if(strcmp(songNames[fileName_pos], playingSong) == 0)
+                    {
+                        u0_dbg_printf("Highlighted song %s %s\n", songNames[fileName_pos], playingSong);
+                        highlighted_has_star = true;
+                    }
+
+                    toggleDirection = true;
+                }
             }
+
             vTaskDelay(1);
         }
 }
 void vLCDSelectButton(void *p)
 {
-    char select[] = {"*"};
-    char space[] = {" "};
-    int star_pos=0;
+//    char select[] = {"*"};
+//    char space[] = {" "};
 
     while(1)
     {
             //Selecting song button
-            if(switch1.getLevel())
+            if(playPauseButton.getLevel())
             {
                 selectFlag = true;
                 if(selectFlag)
                 {
-                    (lcd.*line_ptr_arr[star_pos])();
-                    sendLCDData(space);
-                    lcd.LCDSet_Cursor(star_pos+1, 0);
+                    ClearStar();
 
-                    star_pos = line_pos;
-                    u0_dbg_printf("selected song: %s\n", fileNames[fileName_pos-1]);
-                    // BUG: this writes * to the next line
+                    //write * to current playing song
                     (lcd.*line_ptr_arr[line_pos])();
-                    sendLCDData(select);
+                    sendLCDData(star);
+                    sprintf(tempBuff, "%s", songNames[fileName_pos-1]);
+                    strncpy(playingSong, tempBuff, sizeof(tempBuff));
+                    u0_dbg_printf("playing song: %s\n", playingSong);
+                    highlighted_has_star = true;
     //                lcd.LCDBlinkCursor();
-                    lcd.LCDSet_Cursor(line_pos+1, 0);
+                    lcd.LCDSetCursor(line_pos+1, 0);
                     selectFlag = false;
+
+                    // send to queue
                     name_queue_handle = scheduler_task::getSharedObject("name_queue");
                     name_queue_filled_handle = scheduler_task::getSharedObject("name_queue_filled");
                     if(name_queue_handle == NULL)
@@ -294,22 +324,88 @@ void vLCDSelectButton(void *p)
                     }
                 }
             }
-            vTaskDelay(500);
+            vTaskDelay(100);
     }
 }
+void vLCDSettingsButton(void *p)
+{
+    char volumeScreen[] = {" __Volume Settings__"};
+    char bassTrebleScreen[] = {"Bass/Treble Settings"};
+    char vol[20];
+    while(1)
+    {
+        if(settingsButton.getLevel())
+        {
+            settingsPage++;
+            if(settingsPage == 3)
+                settingsPage = 0;
+
+            u0_dbg_printf("settingsPage: %d\n", settingsPage);
+            if(settingsPage == 0)
+            {
+                if(changedSettings)
+                {
+                    lcd.LCDClearDisplay();
+                    for(int i=0; i<4; i++)
+                    {
+                        (lcd.*line_ptr_arr[i])();
+                        sendLCDData(savedScreenLine[i]);
+                        lcd.LCDSetCursor(i+1, 0);
+                        if(strcmp(savedScreenLine[i], playingSong) == 0)
+                        {
+                            sendLCDData(star);
+                            lcd.LCDSetCursor(i+1, 0);
+                        }
+                    }
+                    lcd.LCDSetCursor(1, 0);
+                    changedSettings = false;
+                }
+            }
+            if(settingsPage == 1)
+            {
+                changedSettings = true;
+                lcd.LCDClearDisplay();
+                sendLCDData(volumeScreen);
+                (lcd.*line_ptr_arr[2])();                   // go to line 3
+                sprintf(vol, "%.2f%%", ConvertVolume(volume));
+//                vol = ConvertVolume(volume);
+                sendLCDData(vol);
+                (lcd.*line_ptr_arr[line_pos])();
+            }
+            if(settingsPage == 2)
+            {
+                changedSettings = true;
+                lcd.LCDClearDisplay();
+                sendLCDData(bassTrebleScreen);
+                (lcd.*line_ptr_arr[line_pos])();
+            }
+
+//            if(settingsPage == 0)
+//            {
+//                char selectLine1[] = {" ___Your songs___"};
+//                (lcd.*line_ptr_arr[0])();
+//                sendLCDData(selectLine1);
+//
+//                (lcd.*line_ptr_arr[1])();
+//            //    char temp[20];
+//            //    temp = songNames[songName_pos];
+//                sendLCDData(songNames[songName_pos]);
+//
+//                (lcd.*line_ptr_arr[2])();
+//                sendLCDData(songNames[++songName_pos]);
+//
+//                (lcd.*line_ptr_arr[3])();
+//                sendLCDData(songNames[++songName_pos]);
+//            }
+        }
+        vTaskDelay(200);
+    }
+}
+#endif
 
 int main(void)
 {
-#if 0
-    name_queue_handle = xQueueCreate(1, sizeof(char)*32);//create queue
-    data_queue_handle = xQueueCreate(10, sizeof(char)*512); //create queue TODO: double check size of queue
-    name_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
-
-    if(!scheduler_task::addSharedObject("name_queue_filled", name_queue_filled_handle)) //try to and check share semaphore
-    {
-        uart0_puts("ERROR: initPlayCmd() failed to create shared objects for semaphores.\n");
-    }
-#endif
+    char splashScreen[] = {"Welcome to FAM MP3"};
     /*      INIT functions for decoder      */
     ssp1_init();                            // initialize SPI1
 //    ssp1_set_max_clock(12);                 // sets clock to 12MHz
@@ -319,21 +415,35 @@ int main(void)
 
 //    success &= VSTestInitSoftware();
 //    InitSoftware();
-    bool lcd_success = InitLCD();
+//    bool lcd_success = InitLCD();
 
 //    for(int i=0; i<10; i++)
 //    {
 //        u0_dbg_printf("%s\n", songNames[i]);
 //    }
 
-   uart1.Initialize(LabUART::Uart2, 9600);
-   lcd.LCDSetBaudRate();
-   lcd.LCDTurnDisplayOn();
-   lcd.LCDBackLightON();
-   lcd.LCD20char();
-   lcd.LCD4Lines();
-   lcd.LCDCursorPosition();
-   lcd.LCDClearDisplay();
+    // buttons init
+//    settingsButton.setAsInput();
+//    playPauseButton.setAsInput();
+//    upButton.setAsInput();
+//    downButton.setAsInput();
+//    volume = scheduler_task::getSharedObject("volume");
+
+//   uart1.Initialize(LabUART::Uart2, 9600);
+//   lcd.LCDSetBaudRate();
+//   lcd.LCDTurnDisplayOn();
+//   lcd.LCDBackLightON();
+////   lcd.LCDSetSplashScreen();
+//   lcd.LCD20char();
+////   lcd.LCD4Lines();
+////   lcd.LCDCursorPosition();
+////   lcd.LCDClearDisplay();
+//   sendLCDData(splashScreen);
+    bool lcd_success = InitLCD();
+//
+//   // TODO: set "splash screen"
+////   (lcd.*line_ptr_arr[1])();
+////   sendLCDData(splashScreen);
 
    if(!lcd_success)
        printf("Failed initializing LCD, exiting\n");
@@ -354,16 +464,19 @@ int main(void)
 
     /* Consumes very little CPU, but need highest priority to handle mesh network ACKs */
     scheduler_add_task(new wirelessTask(PRIORITY_CRITICAL));
-    //    scheduler_add_task(new buttons());
+        scheduler_add_task(new buttons());
+
+//        scheduler_add_task(new LCD_Settings());
+        scheduler_add_task(new LCD_UI());
+        scheduler_add_task(new LCD_Select());
+        scheduler_add_task(new LCD_Settings());
         scheduler_add_task(new reader());
         scheduler_add_task(new player());
     //    scheduler_add_task(new sineTest());
 
-    xTaskCreate(vLCDUI, "lcd", 1024, NULL, 1, NULL);
-//    xTaskCreate(vLCD_cursor, "lcd_cursor", 1024, NULL, 1, NULL);
-    xTaskCreate(vLCDSelectButton, "lcd_select", 1024, NULL, 1, NULL);
-
-
+//    xTaskCreate(vLCDUI, "lcd", 1024, NULL, 2, NULL);
+//    xTaskCreate(vLCDSelectButton, "lcd_select", 1024, NULL, 2, NULL);
+//    xTaskCreate(vLCDSettingsButton, "lcd_settings", 1024, NULL, 2, NULL);
 //    scheduler_add_task(new sineTest());
 //    xTaskCreate(vReader, "reader", 1024, NULL, 2, NULL);
 //    xTaskCreate(vPlayer, "player", 1024, NULL, 3, NULL);
@@ -373,79 +486,100 @@ int main(void)
     return 0;
 }
 
-bool InitLCD()
-{
-    DIR Dir;
-    FILINFO Finfo;
-    FRESULT returnCode;
-    const char dirPath[] = "1:";
-//    std::string songNames[10];
-    int count = 0;
-    char *filename;
-    char songNamesBuff [_MAX_LFN] = {0};
-    char fileNamesBuff [_MAX_LFN] = {0};
-    char small_buff[20];
-
-    #if _USE_LFN
-        char Lfname[_MAX_LFN];
-    #endif
-
-    #if _USE_LFN
-        Finfo.lfname = Lfname;
-        Finfo.lfsize = sizeof(Lfname);
-    #endif
-
-    if (FR_OK != (returnCode = f_opendir(&Dir, dirPath))) {
-        u0_dbg_printf("Invalid directory: |%s| (Error %i)\n", dirPath, returnCode);
-        return false;
-    }
-
-    for (; ;)
-    {
-//        #if _USE_LFN
-//            Finfo.lfname = Lfname;
-//            Finfo.lfsize = sizeof(Lfname);
-//        #endif
-
-        returnCode = f_readdir(&Dir, &Finfo);
-        if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
-            break;
-        }
-//        u0_dbg_printf("%s\n", &(Finfo.fname));
-    #if _USE_LFN
-        if(Finfo.lfname[strlen(Finfo.lfname)-1] == '3')
-        {
-            // store the file names as "1:<song name.mp3>" to the fileNames array
-            sprintf(fileNamesBuff, "1:%s", Finfo.lfname);
-            strncpy(fileNames[count], fileNamesBuff, sizeof(songNamesBuff));
-
-            filename = strtok(Finfo.lfname, ".");
-
-            // put a space in front of the song name and store it to the songNames array
-            sprintf(songNamesBuff, " %s", filename);
-
-            // if song name is more than 20 characters, truncate
-            if(strlen(songNamesBuff) > 20)
-            {
-                // trunctate songNamesBuff so that it's only 17 characters long
-                songNamesBuff[17] = '\0';
-                sprintf(small_buff, "%s...", songNamesBuff);
-                // save the truncated song name into songNames array
-                strncpy(songNames[count], small_buff, sizeof(small_buff));
-            }
-            else
-                strncpy(songNames[count], songNamesBuff, sizeof(songNamesBuff));
-
-            count++;
-            if(count == 10)
-                count = 0;
-        }
-    #endif
-    }
-//    for(int i=0;i<10;i++){
-//        u0_dbg_printf("name: %s\n", songNames[i]);
+//bool InitLCD()
+//{
+//    DIR Dir;
+//    FILINFO Finfo;
+//    FRESULT returnCode;
+//    const char dirPath[] = "1:";
+////    std::string songNames[10];
+//    int count = 0;
+//    char *filename;
+//    char songNamesBuff [_MAX_LFN] = {0};
+//    char fileNamesBuff [_MAX_LFN] = {0};
+//    char small_buff[20];
+//
+//    #if _USE_LFN
+//        char Lfname[_MAX_LFN];
+//    #endif
+//
+//    #if _USE_LFN
+//        Finfo.lfname = Lfname;
+//        Finfo.lfsize = sizeof(Lfname);
+//    #endif
+//
+//    if (FR_OK != (returnCode = f_opendir(&Dir, dirPath))) {
+//        u0_dbg_printf("Invalid directory: |%s| (Error %i)\n", dirPath, returnCode);
+//        return false;
 //    }
+//
+//    for (; ;)
+//    {
+////        #if _USE_LFN
+////            Finfo.lfname = Lfname;
+////            Finfo.lfsize = sizeof(Lfname);
+////        #endif
+//
+//        returnCode = f_readdir(&Dir, &Finfo);
+//        if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
+//            break;
+//        }
+////        u0_dbg_printf("%s\n", &(Finfo.fname));
+//    #if _USE_LFN
+//        if(Finfo.lfname[strlen(Finfo.lfname)-1] == '3')
+//        {
+//            // store the file names as "1:<song name.mp3>" to the fileNames array
+//            sprintf(fileNamesBuff, "1:%s", Finfo.lfname);
+//            strncpy(fileNames[count], fileNamesBuff, sizeof(songNamesBuff));
+//
+//            filename = strtok(Finfo.lfname, ".");
+//
+//            // put a space in front of the song name and store it to the songNames array
+//            sprintf(songNamesBuff, " %s", filename);
+//
+//            // if song name is more than 20 characters, truncate
+//            if(strlen(songNamesBuff) > 20)
+//            {
+//                // trunctate songNamesBuff so that it's only 17 characters long
+//                songNamesBuff[17] = '\0';
+//                sprintf(small_buff, "%s...", songNamesBuff);
+//                // save the truncated song name into songNames array
+//                strncpy(songNames[count], small_buff, sizeof(small_buff));
+//            }
+//            else
+//                strncpy(songNames[count], songNamesBuff, sizeof(songNamesBuff));
+//
+//            count++;
+//            if(count == 10)
+//                count = 0;
+//        }
+//    #endif
+//    }
+////    for(int i=0;i<10;i++){
+////        u0_dbg_printf("name: %s\n", songNames[i]);
+////    }
+//
+//    return true;
+//
+//}
 
-    return true;
+//void ClearStar()
+//{
+//    for(int i=0; i<4; i++)
+//    {
+//        (lcd.*line_ptr_arr[i])();
+//        lcd.LCDSetCursor(i+1, 0);
+//        sendLCDData(space);
+//        lcd.LCDSetCursor(i+1, 0);
+//    }
+//}
 
-}
+//double ConvertVolume(uint8_t vol)
+//{
+//    uint16_t v;
+//    v = vol;
+//    v <<= 8;
+//    v |= vol;
+//    u0_dbg_printf("volume: %x\n", v);
+//    return (v*100/65278);
+//}

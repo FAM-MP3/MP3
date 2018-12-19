@@ -14,11 +14,14 @@
 #include "uart0_min.h"          //UART0 output in Hercules
 #include <stdio.h>              //print f
 #include "ff.h"                 //file system
+#include "LabUART.hpp"
 
 class LCDTask
 {
     public:
 //        bool LCDinit(void);
+        LCDTask();
+//        void setUART(LabUART passed_uart);
         bool LCDClearDisplay();
         bool LCDTurnDisplayOn();
         bool LCDSetBaudRate();
@@ -32,9 +35,11 @@ class LCDTask
         bool LCDLine3();
         bool LCDLine4();
         bool LCDScrollRight();
-        bool LCDSet_Cursor(int line, int position);
+        bool LCDSetCursor(int line, int position);
+        bool LCDSetSplashScreen();
 
     private:
+        LabUART uart;
 
 };
 

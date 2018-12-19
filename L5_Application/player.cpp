@@ -26,6 +26,13 @@
 #include "LabGPIO.hpp"
 #include "def.hpp"
 #include "printf_lib.h"
+#include "utilities.h"
+
+//static bool (LCDTask::*line_ptr_arr[])() = {&LCDTask::LCDLine1, &LCDTask::LCDLine2, &LCDTask::LCDLine3, &LCDTask::LCDLine4};
+static char space[] = {" "};
+//static LCDTask lcd;
+static LCDTask lcd;
+static LabUART uart1;
 /* Download the latest VS1053a Patches package and its
    vs1053b-patches-flac.plg. If you want to use the smaller patch set
    which doesn't contain the FLAC decoder, use vs1053b-patches.plg instead.
@@ -135,6 +142,12 @@ int InitVS10xx(void) {
     GPIO2.setAsInput();
     GPIO3.setAsOutput();
     GPIO4.setAsOutput();
+
+    // for lcd
+//    settingsButton.setAsInput();
+//    playPauseButton.setAsInput();
+//    upButton.setAsInput();
+//    downButton.setAsInput();
 
 
     GPIO1.setLow();             // Reset VS10xx
@@ -1568,3 +1581,129 @@ bool getDREQ_lvl()
 //}
 
 
+void sendLCDData(char data[]){
+    char check = '\0';
+//    u0_dbg_printf("data: %s\n", data);
+    int counter = 0;
+    while(data[counter] != check){
+        uart1.Transmit(data[counter]);
+        counter++;
+        delay_ms(1);
+    }
+}
+
+//void ClearStar()
+//{
+//    for(int i=0; i<4; i++)
+//    {
+//        (lcd.*line_ptr_arr[i])();
+//        lcd.LCDSetCursor(i+1, 0);
+//        sendLCDData(space);
+//        lcd.LCDSetCursor(i+1, 0);
+//    }
+//}
+
+double ConvertVolume(uint8_t vol)
+{
+    uint16_t v;
+    v = vol;
+    v <<= 8;
+    v |= vol;
+    u0_dbg_printf("volume: %x\n", v);
+    return (v*100/65278);
+}
+
+bool InitLCD()
+{
+//    char t[] = {"hello"};
+    uart1.Initialize(LabUART::Uart2, 9600);
+//    lcd.setUART(uart1);
+    lcd.LCDSetBaudRate();
+    lcd.LCDTurnDisplayOn();
+    lcd.LCDBackLightON();
+ //   lcd.LCDSetSplashScreen();
+ //   sendLCDData(splashScreen);
+    lcd.LCD20char();
+    lcd.LCD4Lines();
+//    lcd.LCDCursorPosition();
+    lcd.LCDClearDisplay();
+
+//    sendLCDData(t);
+}
+
+//bool InitLCD()
+//{
+//    DIR Dir;
+//    FILINFO Finfo;
+//    FRESULT returnCode;
+//    const char dirPath[] = "1:";
+////    std::string songNames[10];
+//    int count = 0;
+//    char *filename;
+//    char songNamesBuff [_MAX_LFN] = {0};
+//    char fileNamesBuff [_MAX_LFN] = {0};
+//    char small_buff[20];
+//
+//    #if _USE_LFN
+//        char Lfname[_MAX_LFN];
+//    #endif
+//
+//    #if _USE_LFN
+//        Finfo.lfname = Lfname;
+//        Finfo.lfsize = sizeof(Lfname);
+//    #endif
+//
+//    if (FR_OK != (returnCode = f_opendir(&Dir, dirPath))) {
+//        u0_dbg_printf("Invalid directory: |%s| (Error %i)\n", dirPath, returnCode);
+//        return false;
+//    }
+//
+//    for (; ;)
+//    {
+////        #if _USE_LFN
+////            Finfo.lfname = Lfname;
+////            Finfo.lfsize = sizeof(Lfname);
+////        #endif
+//
+//        returnCode = f_readdir(&Dir, &Finfo);
+//        if ( (FR_OK != returnCode) || !Finfo.fname[0]) {
+//            break;
+//        }
+////        u0_dbg_printf("%s\n", &(Finfo.fname));
+//    #if _USE_LFN
+//        if(Finfo.lfname[strlen(Finfo.lfname)-1] == '3')
+//        {
+//            // store the file names as "1:<song name.mp3>" to the fileNames array
+//            sprintf(fileNamesBuff, "1:%s", Finfo.lfname);
+//            strncpy(fileNames[count], fileNamesBuff, sizeof(songNamesBuff));
+//
+//            filename = strtok(Finfo.lfname, ".");
+//
+//            // put a space in front of the song name and store it to the songNames array
+//            sprintf(songNamesBuff, " %s", filename);
+//
+//            // if song name is more than 20 characters, truncate
+//            if(strlen(songNamesBuff) > 20)
+//            {
+//                // trunctate songNamesBuff so that it's only 17 characters long
+//                songNamesBuff[17] = '\0';
+//                sprintf(small_buff, "%s...", songNamesBuff);
+//                // save the truncated song name into songNames array
+//                strncpy(songNames[count], small_buff, sizeof(small_buff));
+//            }
+//            else
+//                strncpy(songNames[count], songNamesBuff, sizeof(songNamesBuff));
+//
+//            count++;
+//            if(count == 10)
+//                count = 0;
+//        }
+//    #endif
+//    }
+////    for(int i=0;i<10;i++){
+////        u0_dbg_printf("name: %s\n", songNames[i]);
+////    }
+//
+//    return true;
+//
+//}

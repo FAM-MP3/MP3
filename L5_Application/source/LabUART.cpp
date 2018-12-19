@@ -6,6 +6,7 @@
  */
 
 #include "LabUART.hpp"
+#include "printf_lib.h"
 
 LabUART::LabUART()
 {
@@ -95,6 +96,7 @@ char LabUART::Receive()
 
 void LabUART::Transmit(char data)
 {
+//    u0_dbg_printf("uart transmit: %x\n", data);
     switch(uart_case)
     {
         case Uart2: LPC_UART2->THR = data;

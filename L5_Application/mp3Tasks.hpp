@@ -15,6 +15,11 @@
 #include <stdio.h>              //print f
 #include "ff.h"                 //file system
 #include "storage.hpp"
+#include "LCDTask.hpp"
+#include "LabUART.hpp"
+#include "LabGPIO.hpp"
+
+
 
 class reader : public scheduler_task
 {
@@ -55,7 +60,8 @@ class player : public scheduler_task
         QueueHandle_t data_queue_handle= NULL;
 //        SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
         unsigned char data[512];
-        uint16_t volume = 40;
+//        uint16_t volume = 40;
+//        uint8_t volume = 20;
 //        bool interrupted;
         bool initialized = false;
         unsigned char *bufP = NULL;
@@ -78,6 +84,40 @@ class buttons : public scheduler_task
     private:
 //        SemaphoreHandle_t volume_down_handle;
 //        uint8_t volume;
+};
+
+class LCD_UI : public scheduler_task
+{
+    public :
+    LCD_UI();
+        bool init(void);
+        bool run(void *p);
+    private:
+
+};
+
+class LCD_Select : public scheduler_task
+{
+    public :
+    LCD_Select();
+        bool init(void);
+        bool run(void *p);
+    private:
+        QueueHandle_t name_queue_handle = NULL;
+        SemaphoreHandle_t name_queue_filled_handle;
+};
+
+class LCD_Settings : public scheduler_task
+{
+    public :
+    LCD_Settings();
+        bool init(void);
+        bool run(void *p);
+    private:
+        char vol[20];
+        double percentage;
+        bool changedSettings = false;                   // true when settingsButton is toggled
+
 };
 
 #endif /* MP3TASKS_HPP_ */

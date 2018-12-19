@@ -2,6 +2,8 @@
 #define PLAYER_RECORDER_H
 
 #include "vs10xx_uc.h"
+#include "LCDTask.hpp"
+//#include "def.hpp"
 //#include "def.hpp"
 //int VSTestInitHardware(void);
 //int VSTestInitSoftware(void);
@@ -39,6 +41,13 @@ void play(unsigned char* buffer, int size);               // play song
 void xDCS_setLow();                                          // set DREQ low
 void xDCS_setHigh();                                         // set DREQ high
 bool getDREQ_lvl();                                       // get DREQ lvl
+
+void sendLCDData(char data[]);                              // writes LCD Data
+//void ClearStar();                                           // clears * in every line
+double ConvertVolume(uint8_t vol);                          // converts volume to %
+bool InitLCD();                                             // initializes LCD with song names
+
+
 //bool InitLCD();                                           // initializes LCD with song names
 //
 //
