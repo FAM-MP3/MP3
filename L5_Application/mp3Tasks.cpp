@@ -19,6 +19,7 @@
 #include "ssp1.h"
 #include "uart0_min.h"
 #include <stdio.h>
+#include <stdlib.h>
 //#include "gpioInterrupts.hpp"
 #include "eint.h"
 #include "InterruptLab.h"
@@ -34,8 +35,14 @@ volatile SemaphoreHandle_t play_player_handle = NULL;
 
 volatile SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
+volatile SemaphoreHandle_t volume_up_handle = xSemaphoreCreateBinary();
+volatile SemaphoreHandle_t button_ready_handle = xSemaphoreCreateBinary();
 
+static volatile bool pauseButtonReady = true;
+static volatile bool volumeUpButtonReady = true;
+static volatile bool volumeDownButtonReady = true;
 static volatile bool buttonReady = true;
+
 LabGpioInterrupts gpio_interrupt;
 void Eint3Handler(void)
 {
@@ -52,12 +59,14 @@ uint i;
 void Port0Pin29ISR(void)
 {
     taskENTER_CRITICAL();
-    if(buttonReady)
+    if(pauseButtonReady && buttonReady)
     {
+        pauseButtonReady = false;
         buttonReady = false;
         u0_dbg_printf("*");//debug for bouncing
         long yield = 0;
         xSemaphoreGiveFromISR(pause_reader_semaphore_handle, &yield);
+        xSemaphoreGiveFromISR(button_ready_handle, &yield);
         portYIELD_FROM_ISR(yield);
     }
     taskEXIT_CRITICAL();
@@ -65,10 +74,34 @@ void Port0Pin29ISR(void)
 
 void Port0Pin0ISR(void)
 {
-    //toggle volume
-    long yield = 0;
-    xSemaphoreGiveFromISR(volume_down_handle, &yield);
-    portYIELD_FROM_ISR(yield);
+    taskENTER_CRITICAL();
+    if(volumeDownButtonReady && buttonReady)
+    {
+        volumeDownButtonReady = false;
+        buttonReady = false;
+        u0_dbg_printf("v");//debug for bouncing
+        long yield = 0;
+        xSemaphoreGiveFromISR(volume_down_handle, &yield);
+        xSemaphoreGiveFromISR(button_ready_handle, &yield);
+        portYIELD_FROM_ISR(yield);
+    }
+    taskEXIT_CRITICAL();
+}
+
+void Port0Pin1ISR(void)
+{
+    taskENTER_CRITICAL();
+    if(volumeUpButtonReady && buttonReady)
+    {
+        volumeUpButtonReady = false;
+        buttonReady = false;
+        u0_dbg_printf("^");//debug for bouncing
+        long yield = 0;
+        xSemaphoreGiveFromISR(volume_up_handle, &yield);
+        xSemaphoreGiveFromISR(button_ready_handle, &yield);
+        portYIELD_FROM_ISR(yield);
+    }
+    taskEXIT_CRITICAL();
 }
 
 // ------------------------------------------- READER -------------------------------------------
@@ -154,10 +187,27 @@ bool reader::run(void *p)
 //       }
 
         xQueueSend(data_queue_handle, &data, portMAX_DELAY); //send it to the decoder
-       if(xSemaphoreTake(name_queue_filled_handle, 0))//If we get a semaphore for a new song while a song is currently playing
+        vTaskDelay(10);
+
+       if(!volumeDownButtonReady)
+       {
+           while(!volumeDownButtonReady)
+           {
+               vTaskDelay(10);
+           }
+       }
+       else if(!volumeUpButtonReady)
+       {
+           while(!volumeUpButtonReady)
+           {
+               vTaskDelay(10);
+           }
+       }
+       else if(xSemaphoreTake(name_queue_filled_handle, 0))//If we get a semaphore for a new song while a song is currently playing
        {
             tookSongQSemaphore = true; //we don't need to take the semaphore again
            offset = filesize; //stop playing this song
+           vTaskDelay(10);
 
        }
        else if(xSemaphoreTake(pause_reader_semaphore_handle, 0)) //if we get a semaphore to pause the song
@@ -170,7 +220,7 @@ bool reader::run(void *p)
             //debounce
             vTaskDelay(1000 / portTICK_PERIOD_MS); //wait 1 second for button bounce
             taskENTER_CRITICAL();
-            buttonReady = true;
+            pauseButtonReady = true;
             taskEXIT_CRITICAL();
 
             //WAIT FOR UNPAUSE
@@ -184,11 +234,11 @@ bool reader::run(void *p)
             //debounce
             vTaskDelay(500 / portTICK_PERIOD_MS); //wait 1/2 second for button bounce
             taskENTER_CRITICAL();
-            buttonReady = true;
+            pauseButtonReady = true;
             taskEXIT_CRITICAL();
        }
     }
-    vTaskDelay(2);
+    vTaskDelay(20);
     return true;
 }
 
@@ -247,11 +297,34 @@ bool player::run(void *p)
     {
         xSemaphoreTake(pause_player_handle, portMAX_DELAY); //wait until unpaused
     }
-    else if((xSemaphoreTake(volume_down_handle, 0) == pdTRUE) && (volume < 0xff))//if we get a request to lower volume
+    else if((xSemaphoreTake(volume_down_handle, 0) == pdTRUE))//if we get a request to lower volume
     {
-        vTaskDelay(1000 / portTICK_PERIOD_MS); //wait 1 second for button bounce
-        volume = ((volume - 50) > 0xff)?0xff:(volume-50);
+//        u0_dbg_printf("\nvol down start\n");//debug for bouncing
+        vTaskDelay(500 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        volume = ((volume + 15 + 100) > 0x162)?0xfe:(volume + 15);
         setVolume(volume, volume);
+
+        u0_dbg_printf("\nvol is %d\n", volume);//debug for bouncing
+  //      vTaskDelay(100 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        taskENTER_CRITICAL();
+        volumeDownButtonReady = true;
+        taskEXIT_CRITICAL();
+
+    }
+    else if((xSemaphoreTake(volume_up_handle, 0) == pdTRUE))//if we get a request to increase volume
+    {
+ //       u0_dbg_printf("\nvol up start\n");//debug for bouncing
+        vTaskDelay(500 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        volume = ((volume - 15 + 100) < 0x64)?0x00:(volume-15);
+        setVolume(volume, volume);
+
+        u0_dbg_printf("\nvol is %d\n", volume);
+  //      u0_dbg_printf("\nvol up end\n");//debug for bouncing
+  //      vTaskDelay(100 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+        taskENTER_CRITICAL();
+        volumeUpButtonReady = true;
+        taskEXIT_CRITICAL();
+
     }
     else if(xQueueReceive(data_queue_handle, &data, 5000))//if we can get song data from the queue
     {
@@ -266,7 +339,7 @@ bool player::run(void *p)
 
 
 
-    vTaskDelay(2);
+    vTaskDelay(10);
     return true;
 }
 
@@ -288,7 +361,8 @@ bool buttons::init(void)
 //        return false;
 //    }
 //
-//    eint3_enable_port0(1, eint_rising_edge, Port0Pin0ISR);
+        eint3_enable_port0(0, eint_rising_edge, Port0Pin0ISR); //volume up
+        eint3_enable_port0(1, eint_rising_edge, Port0Pin1ISR); //volume down
         eint3_enable_port0(29, eint_rising_edge, Port0Pin29ISR);    // for pause
 //
 //    pause_toggle_handle = xSemaphoreCreateBinary();
@@ -321,7 +395,18 @@ bool buttons::run(void *p)
 //              u0_dbg_printf("song paused\n");
 //          }
 //    }
-    vTaskDelay(2);
+    if(xSemaphoreTake(button_ready_handle, 0)) //if we get a semaphore to pause the song
+       {
+            while(!(pauseButtonReady && volumeUpButtonReady && volumeDownButtonReady))
+            {
+                vTaskDelay(2); //wait until all buttons are ready
+            }
+            vTaskDelay(1000 / portTICK_PERIOD_MS); //wait 1 second for button bounce
+            taskENTER_CRITICAL();
+            buttonReady = true;
+            taskEXIT_CRITICAL();
+       }
+    vTaskDelay(20);
     return true;
 }
 

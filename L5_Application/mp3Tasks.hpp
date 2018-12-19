@@ -24,7 +24,7 @@ class reader : public scheduler_task
         bool run(void *p);
     private:
         QueueHandle_t name_queue_handle = xQueueCreate(1, sizeof(char)*32);//create queue
-        QueueHandle_t data_queue_handle = xQueueCreate(2, sizeof(char)*512); //create queue TODO: double check size of queue
+        QueueHandle_t data_queue_handle = xQueueCreate(10, sizeof(char)*512); //create queue TODO: double check size of queue
         SemaphoreHandle_t name_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
         SemaphoreHandle_t data_queue_filled_handle = xSemaphoreCreateBinary(); //create semaphore
         //SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary(); //create semaphore
@@ -55,7 +55,7 @@ class player : public scheduler_task
         QueueHandle_t data_queue_handle= NULL;
 //        SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
         unsigned char data[512];
-        uint8_t volume = 50;
+        uint16_t volume = 40;
 //        bool interrupted;
         bool initialized = false;
         unsigned char *bufP = NULL;
