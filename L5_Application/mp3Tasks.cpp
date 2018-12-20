@@ -24,15 +24,6 @@
 #include "eint.h"
 #include "InterruptLab.h"
 
-//static volatile bool pauseSong, pauseToggled; //need to add settingsOpen
-//SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
-//static uint8_t volume = 20;
-/*
-volatile SemaphoreHandle_t pause_toggle_handle = NULL;
-volatile SemaphoreHandle_t pause_player_handle = NULL;
-volatile SemaphoreHandle_t play_player_handle = NULL;
-*/
-
 volatile SemaphoreHandle_t pause_reader_semaphore_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t volume_down_handle = xSemaphoreCreateBinary();
 volatile SemaphoreHandle_t volume_up_handle = xSemaphoreCreateBinary();
@@ -79,9 +70,10 @@ char star[] = {"*"};
 char space[] = {" "};
 char selectLine1[] = {" ___Your songs___"};
 char volumeScreen[] = {" __Volume Settings__"};
-char bassTrebleScreen[] = {"Bass/Treble Settings"};
+char bassTrebleScreen[] = {" __Bass Settings__"};
 char test[] = {"test"};
 int line_offset = 0;
+int fileName_offset = 0;
 
 static LCDTask lcd;
 //static LabUART uart1;
@@ -90,7 +82,7 @@ LabGPIO settingsButton(0,30);            // for scrolling through settings pages
 LabGpioInterrupts gpio_interrupt;
 
 static volatile uint8_t volume = 40;
-static volatile uint8_t bass = 2;
+static volatile uint8_t bass = 15;
 
 void Eint3Handler(void)
 {
@@ -554,7 +546,6 @@ bool buttons::run(void *p)
 //        static volatile bool scrollDownButtonReady = true;
 //        static volatile bool buttonReady = true;
 //        static volatile bool songPaused = false;
-
             while(!(pauseButtonReady && volumeUpButtonReady && volumeDownButtonReady && selectButtonReady && scrollUpButtonReady && scrollDownButtonReady && bassUpButtonReady && bassDownButtonReady))
             {
                 vTaskDelay(2);
@@ -710,7 +701,7 @@ bool LCD_UI::run(void *p)
                     for(int j=0; j<4; j++) // point to the last line's songName_pos
                     {
                         songName_pos++;
-                        if(songName_pos == numSongs+1)
+                        if(songName_pos == numSongs)
                             songName_pos = 0;
                     }
 //                        fileName_pos++;
@@ -722,7 +713,7 @@ bool LCD_UI::run(void *p)
                 for(int i=0; i<4; i++)
                 {
                     songName_pos++;
-                    if(songName_pos == numSongs+1)
+                    if(songName_pos == numSongs)
                         songName_pos = 0;
 //                        u0_dbg_printf("songName_pos = %d\n", songName_pos);
 //                        u0_dbg_printf("line # %d, song_pos = %d songName = %s\n", i, songName_pos, songNames[songName_pos]);
@@ -754,13 +745,13 @@ bool LCD_UI::run(void *p)
             if(toggleDirection)
             {
                 fileName_pos++;
-                if(fileName_pos == numSongs+1)
+                if(fileName_pos == numSongs)
                     fileName_pos = 0;
                 line_offset = 1;
             }
 
             u0_dbg_printf("file name: %s playing song: %s\n", songNames[fileName_pos], playingSong);
-            if(strcmp(songNames[fileName_pos], playingSong) == 0)
+            if(strcmp(songNames[fileName_pos], playingSong) == 0 && (playingSong != NULL))
             {
                 u0_dbg_printf("Highlighted song %s %s\n", songNames[fileName_pos], playingSong);
                 highlighted_has_star = true;
@@ -768,7 +759,7 @@ bool LCD_UI::run(void *p)
 
 
             fileName_pos++;
-            if(fileName_pos == numSongs+1)
+            if(fileName_pos == numSongs)
                 fileName_pos = 0;
 //                line_pos++;
             toggleDirection = false;
@@ -848,7 +839,7 @@ bool LCD_UI::run(void *p)
 
 //                u0_dbg_printf("file name: %s\n", songNames[fileName_pos-1]);
             u0_dbg_printf("file name: %s playing song: %s\n", songNames[fileName_pos], playingSong);
-            if(strcmp(songNames[fileName_pos], playingSong) == 0)
+            if(strcmp(songNames[fileName_pos], playingSong) == 0 && (playingSong != NULL))
             {
                 u0_dbg_printf("Highlighted song %s %s\n", songNames[fileName_pos], playingSong);
                 highlighted_has_star = true;
@@ -911,7 +902,12 @@ bool LCD_Select::run(void *p)
            //write * to current playing song
            (lcd.*line_ptr_arr[line_pos])();
            sendLCDData(star);
-           sprintf(tempBuff, "%s", songNames[fileName_pos-line_offset]);
+           fileName_pos-=line_offset;
+           if(fileName_pos == -1)
+           {
+               fileName_pos = numSongs-1;
+           }
+           sprintf(tempBuff, "%s", songNames[fileName_pos]);
            strncpy(playingSong, tempBuff, sizeof(tempBuff));
            u0_dbg_printf("playing song: %s\n", playingSong);
            highlighted_has_star = true;
@@ -934,7 +930,7 @@ bool LCD_Select::run(void *p)
            if((name_queue_handle != NULL) && (name_queue_filled_handle != NULL))
            {
                xQueueReset( name_queue_handle ); //clear the queue before we fill it again
-               xQueueSend(name_queue_handle, &fileNames[fileName_pos-line_offset], 3000);
+               xQueueSend(name_queue_handle, &fileNames[fileName_pos], 3000);
                xSemaphoreGive(name_queue_filled_handle); //signal request to play song
            }
        }

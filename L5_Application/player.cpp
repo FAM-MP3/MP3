@@ -1472,7 +1472,7 @@ void setVolume(uint8_t left, uint8_t right)
 void setBass(uint8_t enhancement)
 {
     uint16_t data = 0;
-    uint8_t freq = 0x08;
+    uint8_t freq = 0x06;
     enhancement = enhancement << 4;
     enhancement += freq;
     data += enhancement;
@@ -1626,7 +1626,7 @@ double ConvertVolume(uint8_t vol)
 
 double ConvertBass(uint8_t bass)
 {
-    return ((bass-2)*100/15);
+    return ((bass-2)*100/13);
 }
 
 bool InitLCD()
